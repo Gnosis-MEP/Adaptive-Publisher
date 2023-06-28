@@ -6,6 +6,7 @@ from event_service_utils.services.event_driven import BaseEventDrivenCMDService
 from event_service_utils.tracing.jaeger import init_tracer
 
 from adaptive_publisher.conf import LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED
+from adaptive_publisher.event_generators.base import MockedEventGenerator
 from adaptive_publisher.event_generators.rng import RngEarlyFiltering
 
 class AdaptivePublisher(BaseEventDrivenCMDService):
@@ -34,6 +35,7 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         self.event_generator_type = event_generator_type
         self.available_event_generators = {
             'RngEarlyFiltering': RngEarlyFiltering,
+            'MockedEventGenerator': MockedEventGenerator,
         }
         self.file_storage_cli = file_storage_cli
         self.event_generator = None

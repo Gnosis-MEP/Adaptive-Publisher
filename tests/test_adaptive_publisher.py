@@ -19,6 +19,15 @@ class TestAdaptivePublisher(MockedEventDrivenServiceStreamTestCase):
         'service_cmd_key_list': SERVICE_CMD_KEY_LIST,
         'pub_event_list': PUB_EVENT_LIST,
         'service_details': SERVICE_DETAILS,
+        'file_storage_cli': {},
+        'publisher_configs': {
+            'id': 'id',
+            'input_source': 'input_source',
+            'fps': 10.5,
+            'width': 640,
+            'height': 480,
+        },
+        'event_generator_type': 'MockedEventGenerator',
         'logging_level': 'ERROR',
         'tracer_configs': {'reporting_host': None, 'reporting_port': None},
     }

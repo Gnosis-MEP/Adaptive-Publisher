@@ -91,3 +91,15 @@ class OCVEventGenerator():
     def close(self):
         if self.is_open():
             self.cap.release()
+
+
+
+
+
+class MockedEventGenerator(OCVEventGenerator):
+
+    def setup(self):
+        pass
+
+    def is_open(self):
+        return False
