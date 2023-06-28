@@ -1,5 +1,5 @@
 # Adaptive Publisher
-An adaptive publisher for Gnosis with an adaptive early filtering system. Additionally it also uses the internal protocol of message communication from Gnosis, which
+An adaptive publisher for Gnosis with an adaptive early filtering system. Additionally it also uses the internal protocol of message communication from Gnosis
 
 # Commands Stream
 ## Inputs
