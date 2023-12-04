@@ -103,3 +103,5 @@ class MockedEventGenerator(OCVEventGenerator):
 
     def is_open(self):
         return False
+
+

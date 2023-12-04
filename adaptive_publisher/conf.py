@@ -24,6 +24,14 @@ PUBLISHER_RESOLUTION = config('PUBLISHER_RESOLUTION')
 PUBLISHER_WIDTH, PUBLISHER_HEIGHT = [int(v) for v in PUBLISHER_RESOLUTION.split('x')]
 
 
+TEMP_IMG_PATH = os.path.join(PROJECT_ROOT, 'data', 'temp', 'tmp.png')
+
+MODELS_PATH = config('MODELS_PATH', default=os.path.join(PROJECT_ROOT, 'data', 'models'))
+CLS_MODEL_ID =  config('CLS_MODEL_ID', default=f'TS-D-Q-1-10S_-300_car_person-bird-dog')
+OBJ_MODEL_NAME = config('OBJ_MODEL_NAME', default='yolov5n')
+
+
+
 LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED = config('LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED')
 # LISTEN_EVENT_TYPE_OTHER_EVENT_TYPE = config('LISTEN_EVENT_TYPE_OTHER_EVENT_TYPE')
 

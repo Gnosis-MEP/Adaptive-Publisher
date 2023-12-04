@@ -1,5 +1,12 @@
 FROM registry.insight-centre.org/sit/mps/docker-images/base-services:3.7
 
+## install only stuff for ultralistic hard coupled requirements
+ADD ./requirements-ultra.txt /service/requirements-ultra.txt
+WORKDIR /service
+RUN pip install -r requirements-ultra.txt && \
+    pip uninstall -y opencv-python  && \
+    rm -rf /tmp/pip* /root/.cache
+
 ## install only the service requirements
 ADD ./Pipfile /service/Pipfile
 ADD ./setup.py /service/setup.py
