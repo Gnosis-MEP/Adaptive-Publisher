@@ -14,7 +14,7 @@ from adaptive_publisher.models.oi_obj import OIObjModel
 
 
 class ModelPipeline():
-    def __init__(self, thresholds):
+    def __init__(self, thresholds, oi_label_list=None):
         self.last_key_frame = None
         self.last_key_frame_prediction = None
         self.thresholds = thresholds
@@ -23,6 +23,8 @@ class ModelPipeline():
         #     'oi_cls': (0.3, 0.7),
         #     'oi_obj': 0.5
         # }
+
+        self.oi_label_list = oi_label_list
         self.setup_models()
         self.setup_transforms()
         self.processing_times = {
@@ -62,10 +64,26 @@ class ModelPipeline():
         self.last_key_frame = new_image_frame
         self.last_key_frame_prediction = prediction
 
+    def global_transform(self, new_image_frame):
+        return cv2.cvtColor(new_image_frame, cv2.COLOR_BGR2RGB)
+
+    def check_obj_has_oi(self, np_predicts, threshold):
+        for obj in prediction['data']:
+            if obj['class_id'] in self.eval_confs['OIs_id']:
+                if obj['confidence'] > threshold:
+                    return True
+            if obj['class_id'] in self.equiv_ois.keys():
+                # print(f"obj: {obj['label']}:{obj['class_id']} in equiv key: {self.equiv_ois.keys()}, conf: {obj['confidence']} > {threshold}: {obj['confidence'] > threshold}")
+                if obj['confidence'] > threshold:
+                    return True
+        return False
+
+
     def run_pipeline(self, new_image_frame):
         has_oi = False
         with torch.no_grad():
             diff_perc = 1.0
+            new_image_frame = self.global_transform(new_image_frame)
             if self.last_key_frame is not None:
                 diff_perc = self.register_func_time('diff', self.pixel_diff.predict, new_image_frame, last_key_frame=self.last_key_frame)
             if diff_perc > self.thresholds['diff']:
@@ -76,13 +94,14 @@ class ModelPipeline():
                 elif oi_cls_conf > self.thresholds['oi_cls'][1]:
                     has_oi = True
                 else:
-                    oi_obj_conf = self.register_func_time('oi_obj', self.oi_obj.predict, oi_obj_img)
-                    has_oi = oi_obj_conf > self.thresholds['oi_obj']
+                    oi_obj_predicts = self.register_func_time('oi_obj', self.oi_obj.predict, oi_obj_img)
+                    has_oi = self.oi_obj.is_positive(oi_obj_predicts, self.thresholds['oi_obj'])
 
                 self.replace_key_frame(new_image_frame, has_oi)
             else:
                 has_oi = self.last_key_frame_prediction
             return has_oi
+
 
     def predict(self, new_image_frame):
         return self.register_func_time('pipeline', self.run_pipeline, new_image_frame)
