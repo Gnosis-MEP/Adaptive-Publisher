@@ -52,8 +52,8 @@ class ModelPipeline():
         self.cls_res_transf = get_transforms('CLS')
 
     def oi_transforms(self, new_image_frame):
-        rgb_img = cv2.cvtColor(new_image_frame, cv2.COLOR_BGR2RGB)
-        obj_img = self.register_func_time('oi_obj_transf', self.obj_res_transf, rgb_img)
+        # rgb_img = cv2.cvtColor(new_image_frame, cv2.COLOR_BGR2RGB)
+        obj_img = self.register_func_time('oi_obj_transf', self.obj_res_transf, new_image_frame)
         cls_img = self.register_func_time('oi_cls_transf', self.cls_res_transf, obj_img)
         return obj_img, cls_img
 

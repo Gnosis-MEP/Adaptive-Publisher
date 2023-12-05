@@ -1,7 +1,9 @@
 import numpy as np
 
+
 import cv2
 import numpy as np
+import torch
 
 
 def crop_center(img, size):
@@ -29,6 +31,7 @@ def to_tensor(img):
     # Normalize the image to the range [0, 1]
     img_float /= 255.0
     return img_float
+
 
 def to_pytorch_tensor_format(img):
     # Transpose to match PyTorch's tensor format (H, W, C) to (C, H, W)
@@ -61,6 +64,7 @@ def obj_transf(image):
     obj_img = resize(image, 640)
     return obj_img
 
+
 def cls_transf(image):
     cls_img = resize(image, 232)
     cls_img = crop_center(cls_img, 224)
@@ -70,8 +74,7 @@ def cls_transf(image):
     std = np.array([0.229, 0.224, 0.225])
     cls_img = normalize_image(cls_img, mean, std)
     cls_img = to_pytorch_tensor_format(cls_img)
-    return cls_img
-
+    return torch.from_numpy(cls_img.astype('float32'))
 
 
 def get_transforms_ocv(mode='CLS'):

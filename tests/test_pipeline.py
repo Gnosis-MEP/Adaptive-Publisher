@@ -3,7 +3,16 @@ from unittest import TestCase
 
 import numpy as np
 
+import torch
+
+from torchvision import transforms
+
 from adaptive_publisher.models.pipeline import ModelPipeline
+
+from adaptive_publisher.models.transforms.transf_ocv import (
+    get_transforms_ocv
+)
+from adaptive_publisher.models.transforms.transf_torch import get_transforms_torch
 
 
 
@@ -165,7 +174,6 @@ class TestModelPipelineWithMockedModels(TestCase):
         self.assertTrue(ret)
 
 
-
 class TestModelPipelineActualModels(TestCase):
 
     def setUp(self):
@@ -189,3 +197,20 @@ class TestModelPipelineActualModels(TestCase):
             image = np.random.randint(0, 256, (height, width, 3), dtype=np.uint8)
 
         return image
+
+    def test_image_cls_model_with_ocv_transform(self):
+        mocked_img1 = self.mocked_img(1080, 1920)
+
+        transf_image_ocv = get_transforms_ocv('CLS')(mocked_img1)
+
+        ret = self.pipeline.oi_cls.predict(transf_image_ocv)
+        self.assertAlmostEqual(0.817254, ret, places=6)
+
+    def test_image_cls_model_with_torch_transform(self):
+        mocked_img1 = self.mocked_img(1080, 1920)
+
+        pil_img = transforms.ToPILImage()(mocked_img1)
+        transf_image_torch = get_transforms_torch('CLS')(pil_img)
+
+        ret = self.pipeline.oi_cls.predict(transf_image_torch)
+        self.assertAlmostEqual(0.817254, ret, places=6)
