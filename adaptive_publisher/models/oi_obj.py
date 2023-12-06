@@ -20,7 +20,7 @@ class OIObjModel(BaseModel):
         self.setup()
 
     def setup_oi_ids(self):
-        self.oi_ids = []
+        self.oi_ids = set()
         for class_idx, label in self.model.names.items():
             if label.lower() in self.oi_label_list:
                 self.oi_ids.add(class_idx)
@@ -31,12 +31,12 @@ class OIObjModel(BaseModel):
         self.model.eval()
         self.setup_oi_ids()
 
-    def predict(self, new_image_frame, last_key_frame=None):
+    def predict(self, new_image_frame, last_key_frame=None, threshold=0.0):
         output = self.model([new_image_frame])
         output_predictions = output.xyxyn[0]
         np_predicts = output_predictions.cpu().numpy().astype("float32")
 
-        return np_predicts
+        return self.is_positive(np_predicts, threshold)
 
     def is_positive(self, np_predicts, threshold):
         found_oi_set = set()

@@ -1,14 +1,13 @@
+import os
 from unittest.mock import patch, MagicMock
 from unittest import TestCase
 
 import numpy as np
-
-import torch
-
+import cv2
 from torchvision import transforms
 
-from adaptive_publisher.models.pipeline import ModelPipeline
 
+from adaptive_publisher.models.pipeline import ModelPipeline, OIObjModel
 from adaptive_publisher.models.transforms.transf_ocv import (
     get_transforms_ocv
 )
@@ -183,7 +182,8 @@ class TestModelPipelineActualModels(TestCase):
             'oi_cls': (0.3, 0.7),
             'oi_obj': 0.5
         }
-        self.pipeline = ModelPipeline(thresholds=self.thresholds)
+        self.oi_label_list = ['car']
+        self.pipeline = ModelPipeline(thresholds=self.thresholds, oi_label_list=self.oi_label_list)
 
     def tearDown(self):
         pass
@@ -225,22 +225,24 @@ class TestModelPipelineActualModels(TestCase):
         # self.assertAlmostEqual(0.817254, ret, places=6)
 
     def test_image_obj_model_with_ocv_transform_with_real_image(self):
-        import cv2
-        import os
         img_bgr = cv2.imread(os.path.join(EXAMPLE_IMAGES_PATH, 'dog_bike_car.jpg'))
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
+        transf_image_ocv = get_transforms_ocv('OBJ')(img_rgb)
+
+        oi_obj = OIObjModel(oi_label_list=['dog', 'car'])
+
+        import ipdb; ipdb.set_trace()
+        ret = oi_obj.predict(transf_image_ocv, threshold=0.5)
+        self.assertTrue(ret)
+
+    def test_image_obj_model_with_ocv_transform_with_real_image_not_positive(self):
+        img_bgr = cv2.imread(os.path.join(EXAMPLE_IMAGES_PATH, 'dog_bike_car.jpg'))
+        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
         transf_image_ocv = get_transforms_ocv('OBJ')(img_rgb)
-        ret = self.pipeline.oi_obj.predict(transf_image_ocv)
-        # self.assertAlmostEqual(0.817254, ret, places=6)
 
+        oi_obj = OIObjModel(oi_label_list=['dog', 'bicycle'])
 
-    # def test_image_obj_model_with_torch_transform(self):
-    #     mocked_img1 = self.mocked_img(1080, 1920)
-
-    #     pil_img = transforms.ToPILImage()(mocked_img1)
-    #     transf_image_torch = get_transforms_torch('OBJ')(pil_img)
-
-    #     ret = self.pipeline.oi_obj.predict(transf_image_torch)
-    #     self.assertAlmostEqual(0.817254, ret, places=6)
+        ret = oi_obj.predict(transf_image_ocv, threshold=0.5)
+        self.assertFalse(ret)

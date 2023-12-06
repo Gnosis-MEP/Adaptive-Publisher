@@ -47,7 +47,7 @@ class ModelPipeline():
     def setup_models(self):
         self.pixel_diff = CVDiffModel()
         self.oi_cls = OIClsModel()
-        self.oi_obj = OIObjModel()
+        self.oi_obj = OIObjModel(oi_label_list=self.oi_label_list)
 
     def setup_transforms(self):
         self.obj_res_transf = get_transforms('OBJ')
@@ -67,17 +67,6 @@ class ModelPipeline():
     def global_transform(self, new_image_frame):
         return cv2.cvtColor(new_image_frame, cv2.COLOR_BGR2RGB)
 
-    def check_obj_has_oi(self, np_predicts, threshold):
-        for obj in prediction['data']:
-            if obj['class_id'] in self.eval_confs['OIs_id']:
-                if obj['confidence'] > threshold:
-                    return True
-            if obj['class_id'] in self.equiv_ois.keys():
-                # print(f"obj: {obj['label']}:{obj['class_id']} in equiv key: {self.equiv_ois.keys()}, conf: {obj['confidence']} > {threshold}: {obj['confidence'] > threshold}")
-                if obj['confidence'] > threshold:
-                    return True
-        return False
-
 
     def run_pipeline(self, new_image_frame):
         has_oi = False
@@ -94,8 +83,7 @@ class ModelPipeline():
                 elif oi_cls_conf > self.thresholds['oi_cls'][1]:
                     has_oi = True
                 else:
-                    oi_obj_predicts = self.register_func_time('oi_obj', self.oi_obj.predict, oi_obj_img)
-                    has_oi = self.oi_obj.is_positive(oi_obj_predicts, self.thresholds['oi_obj'])
+                    has_oi = self.register_func_time('oi_obj', self.oi_obj.predict, oi_obj_img, threshold=self.thresholds['oi_obj'])
 
                 self.replace_key_frame(new_image_frame, has_oi)
             else:
