@@ -39,9 +39,7 @@ class LocalOCVEventGenerator(OCVEventGenerator):
                 image_path = self.images_paths[next_frame_index]
                 if 'http' in image_path:
                     image_path = self.dl_temp_image(image_path)
-                    frame = cv2.imread(image_path)
-                    # pil_image = Image.open(image_path)
-                    # image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
+                frame = cv2.imread(image_path)
                 self.current_frame_index = next_frame_index
                 # print(f'read next frame: {self.current_frame_index}')
                 return frame

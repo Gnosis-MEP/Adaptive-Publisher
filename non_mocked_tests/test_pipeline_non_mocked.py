@@ -23,7 +23,7 @@ class TestModelPipelineActualModels(TestCase):
             'oi_obj': 0.5
         }
         self.oi_label_list = ['car']
-        self.pipeline = ModelPipeline(thresholds=self.thresholds, oi_label_list=self.oi_label_list)
+        self.pipeline = ModelPipeline(target_fps=60, thresholds=self.thresholds, oi_label_list=self.oi_label_list)
 
     def tearDown(self):
         pass
