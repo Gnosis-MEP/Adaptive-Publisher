@@ -25,6 +25,11 @@ class OIObjModel(BaseModel):
             if label.lower() in self.oi_label_list:
                 self.oi_ids.add(class_idx)
 
+    def update_oi_ids(self, oi_label_list):
+        self.oi_label_list = oi_label_list
+        self.total_oi_ids = len(oi_label_list)
+        self.setup_oi_ids()
+
     def setup(self):
         cpu_device = torch.device('cpu')
         self.model = torch.hub.load('ultralytics/yolov5', OBJ_MODEL_NAME, pretrained=True)

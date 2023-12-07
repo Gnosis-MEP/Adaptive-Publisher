@@ -17,6 +17,7 @@ from adaptive_publisher.conf import (
     SERVICE_STREAM_KEY,
     SERVICE_CMD_KEY_LIST,
     EVENT_GENERATOR_TYPE,
+    EARLY_FILTERING_PIPELINE_NAME,
     LOGGING_LEVEL,
     TRACER_REPORTING_HOST,
     TRACER_REPORTING_PORT,
@@ -48,7 +49,6 @@ def run_service():
         'width':PUBLISHER_WIDTH,
         'height': PUBLISHER_HEIGHT,
     }
-
     stream_factory = RedisStreamFactory(host=REDIS_ADDRESS, port=REDIS_PORT)
     service = AdaptivePublisher(
         service_stream_key=SERVICE_STREAM_KEY,
@@ -59,6 +59,7 @@ def run_service():
         file_storage_cli=file_storage_cli,
         publisher_configs=publisher_configs,
         event_generator_type=EVENT_GENERATOR_TYPE,
+        early_filtering_pipeline_name=EARLY_FILTERING_PIPELINE_NAME,
         logging_level=LOGGING_LEVEL,
         tracer_configs=tracer_configs
     )

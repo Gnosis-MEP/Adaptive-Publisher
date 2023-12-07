@@ -6,7 +6,7 @@ import cv2
 from torchvision import transforms
 
 
-from adaptive_publisher.models.pipeline import ModelPipeline, OIObjModel
+from adaptive_publisher.models.pipelines import ModelPipeline, OIObjModel
 from adaptive_publisher.models.transforms.transf_ocv import (
     get_transforms_ocv
 )

@@ -28,6 +28,7 @@ class TestAdaptivePublisher(MockedEventDrivenServiceStreamTestCase):
             'height': 480,
         },
         'event_generator_type': 'MockedEventGenerator',
+        'early_filtering_pipeline_name': 'THIS_IS_MOCKED',
         'logging_level': 'ERROR',
         'tracer_configs': {'reporting_host': None, 'reporting_port': None},
     }

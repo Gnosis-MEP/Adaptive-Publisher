@@ -7,7 +7,7 @@ import cv2
 from torchvision import transforms
 
 
-from adaptive_publisher.models.pipeline import ModelPipeline, OIObjModel
+from adaptive_publisher.models.pipelines import ModelPipeline, OIObjModel
 from adaptive_publisher.models.transforms.transf_ocv import (
     get_transforms_ocv
 )
@@ -25,8 +25,8 @@ class TestModelPipelineWithMockedModels(TestCase):
             'oi_obj': 0.5
         }
 
-        with patch('adaptive_publisher.models.pipeline.ModelPipeline.setup_models') as mocked_setup:
-            with patch('adaptive_publisher.models.pipeline.ModelPipeline.setup_transforms') as mocked_transforms:
+        with patch('adaptive_publisher.models.pipelines.ModelPipeline.setup_models') as mocked_setup:
+            with patch('adaptive_publisher.models.pipelines.ModelPipeline.setup_transforms') as mocked_transforms:
                 self.pipeline = ModelPipeline(target_fps=60, thresholds=self.thresholds)
                 self.pipeline.pixel_diff = MagicMock()
                 self.pipeline.oi_cls = MagicMock()
@@ -197,8 +197,8 @@ class TestModelPipelineWithMockedModelsWithCachedResults(TestCase):
         self.target_fps = 30
         self.target_time = 1 / self.target_fps
 
-        with patch('adaptive_publisher.models.pipeline.ModelPipeline.setup_models') as mocked_setup:
-            with patch('adaptive_publisher.models.pipeline.ModelPipeline.setup_transforms') as mocked_transforms:
+        with patch('adaptive_publisher.models.pipelines.ModelPipeline.setup_models') as mocked_setup:
+            with patch('adaptive_publisher.models.pipelines.ModelPipeline.setup_transforms') as mocked_transforms:
                 self.pipeline = ModelPipeline(target_fps=self.target_fps, thresholds=self.thresholds)
                 self.pipeline.pixel_diff = MagicMock()
                 self.pipeline.oi_cls = MagicMock()
@@ -236,7 +236,7 @@ class TestModelPipelineWithMockedModelsWithCachedResults(TestCase):
         ret = self.pipeline.calculate_cached_result_count()
         self.assertEqual(2, ret)
 
-    @patch('adaptive_publisher.models.pipeline.ModelPipeline.calculate_cached_result_count')
+    @patch('adaptive_publisher.models.pipelines.ModelPipeline.calculate_cached_result_count')
     def test_cached_result_count_should_be_correctly_set_to_calculated_res_after_first_prediction(self, mocked_cached):
         mocked_img1 = self.mocked_img(1080, 1920)
 
@@ -249,8 +249,8 @@ class TestModelPipelineWithMockedModelsWithCachedResults(TestCase):
         mocked_cached.assert_called()
         self.assertEqual(5, self.pipeline.cached_result_count)
 
-    @patch('adaptive_publisher.models.pipeline.ModelPipeline.run_pipeline')
-    @patch('adaptive_publisher.models.pipeline.ModelPipeline.calculate_cached_result_count')
+    @patch('adaptive_publisher.models.pipelines.ModelPipeline.run_pipeline')
+    @patch('adaptive_publisher.models.pipelines.ModelPipeline.calculate_cached_result_count')
     def test_cached_result_count_should_be_correctly_reduced_after_cached_result_until_zero(
                                                                                 self, mocked_cached, m_run_pipe):
         mocked_img1 = self.mocked_img(1080, 1920)
@@ -263,8 +263,8 @@ class TestModelPipelineWithMockedModelsWithCachedResults(TestCase):
         self.pipeline.predict(mocked_img1)
         self.assertEqual(self.pipeline.cached_result_count, 0)
 
-    @patch('adaptive_publisher.models.pipeline.ModelPipeline.run_pipeline')
-    @patch('adaptive_publisher.models.pipeline.ModelPipeline.calculate_cached_result_count')
+    @patch('adaptive_publisher.models.pipelines.ModelPipeline.run_pipeline')
+    @patch('adaptive_publisher.models.pipelines.ModelPipeline.calculate_cached_result_count')
     def test_prediction_should_not_call_calc_cached_res_nor_run_pipeline_if_cached_result_count_more_then_zero(
                                                                                 self, mocked_cached, m_run_pipe):
         mocked_img1 = self.mocked_img(1080, 1920)
@@ -275,8 +275,8 @@ class TestModelPipelineWithMockedModelsWithCachedResults(TestCase):
         m_run_pipe.assert_not_called()
 
 
-    @patch('adaptive_publisher.models.pipeline.ModelPipeline.run_pipeline')
-    @patch('adaptive_publisher.models.pipeline.ModelPipeline.calculate_cached_result_count')
+    @patch('adaptive_publisher.models.pipelines.ModelPipeline.run_pipeline')
+    @patch('adaptive_publisher.models.pipelines.ModelPipeline.calculate_cached_result_count')
     def test_prediction_should_return_last_key_frame_prediction_if_cached_result_count_more_then_zero(
                                                                                 self, mocked_cached, m_run_pipe):
         mocked_img1 = self.mocked_img(1080, 1920)

@@ -9,28 +9,23 @@ from adaptive_publisher.models.transforms.transf_ocv import get_transforms
 from adaptive_publisher.models.pixel_diff import CVDiffModel
 from adaptive_publisher.models.oi_cls import OIClsModel
 from adaptive_publisher.models.oi_obj import OIObjModel
+from adaptive_publisher.models.base_pipeline import BaseModelPipeline
 
 
 
-
-class ModelPipeline():
+class ModelPipeline(BaseModelPipeline):
     def __init__(self, target_fps, thresholds, oi_label_list=None):
-        self.target_fps = target_fps
-        self.target_processing_time = 1 / target_fps
         self.cached_result_count = 0
         self.last_key_frame = None
         self.last_key_frame_prediction = None
-        self.thresholds = thresholds
+
+        super().__init__(target_fps, thresholds, oi_label_list=oi_label_list)
         # self.thresholds = {
         #     'diff': 0.05,
         #     'oi_cls': (0.3, 0.7),
         #     'oi_obj': 0.5
         # }
-
-        self.oi_label_list = oi_label_list
-        self.setup_models()
-        self.setup_transforms()
-        self.processing_times = {
+        self.processing_times.update({
             'diff': [],
             'oi_cls_transf': [],
             'oi_cls': [],
@@ -38,15 +33,7 @@ class ModelPipeline():
             'oi_obj': [],
             'pipeline': [],
             'predict': [],
-        }
-
-    def register_func_time(self, name, func, *args, **kwargs):
-        start_time = time.perf_counter()    # 1
-        value = func(*args, **kwargs)
-        end_time = time.perf_counter()      # 2
-        run_time = end_time - start_time    # 3
-        self.processing_times[name].append(run_time)
-        return value
+        })
 
     def setup_models(self):
         self.pixel_diff = CVDiffModel()
@@ -57,6 +44,10 @@ class ModelPipeline():
         self.obj_res_transf = get_transforms('OBJ')
         self.cls_res_transf = get_transforms('CLS')
 
+    def update_oi_ids(self, oi_label_list):
+        super().update_oi_ids(oi_label_list)
+        self.oi_cls.update_oi_ids(oi_label_list)
+
     def oi_transforms(self, new_image_frame):
         obj_img = self.register_func_time('oi_obj_transf', self.obj_res_transf, new_image_frame)
         cls_img = self.register_func_time('oi_cls_transf', self.cls_res_transf, obj_img)
@@ -66,9 +57,6 @@ class ModelPipeline():
         del self.last_key_frame
         self.last_key_frame = new_image_frame
         self.last_key_frame_prediction = prediction
-
-    def global_transform(self, new_image_frame):
-        return cv2.cvtColor(new_image_frame, cv2.COLOR_BGR2RGB)
 
     def calculate_cached_result_count(self):
         total_cached_results_frames = 0
@@ -114,6 +102,51 @@ class ModelPipeline():
         self.cached_result_count = self.calculate_cached_result_count()
         return ret
 
-    def predict(self, new_image_frame):
-        return self.register_func_time('predict', self.run_pipeline_or_cached, new_image_frame)
 
+class BLSingleModelPipeline(BaseModelPipeline):
+
+    def __init__(self, target_fps, thresholds, model_name, oi_label_list=None):
+        self.model_name = model_name
+        self.model = None
+        self.model_predict_funct = None
+        self.model_transf_funct = None
+        super().__init__(target_fps, thresholds, oi_label_list=oi_label_list)
+        self.processing_times.update({
+            'model_transf': [],
+            'model': [],
+        })
+
+    def setup_models(self):
+        if self.model_name == 'CVDiffModel':
+            self.model = CVDiffModel()
+            self.model_predict_funct = lambda x: self.model.predict(x) > self.thresholds['diff']
+        elif self.model_name == 'OIClsModel':
+            self.model = OIClsModel()
+            self.model_predict_funct = self.model.predict
+        elif self.model_name == 'OIObjModel':
+            self.model = OIObjModel(oi_label_list=self.oi_label_list)
+            self.model_predict_funct = self.model.predict
+
+    def setup_transforms(self):
+        self.obj_res_transf = get_transforms('OBJ')
+        self.cls_res_transf = get_transforms('CLS')
+
+        if self.model_name == 'CVDiffModel':
+            self.model_transf_funct = self.global_transform
+
+        elif self.model_name == 'OIClsModel':
+            self.cls_transf = get_transforms('CLS')
+            self.model_transf_funct = lambda new_image_frame: self.global_transform(self.cls_transf(new_image_frame))
+
+        elif self.model_name == 'OIObjModel':
+            self.obj_transf = get_transforms('OBJ')
+            self.model_transf_funct = lambda new_image_frame: self.global_transform(self.obj_transf(new_image_frame))
+
+    def run_pipeline_or_cached(self, new_image_frame):
+        new_image_frame = self.register_func_time('model_transf', self.model_transf_funct, new_image_frame)
+        return self.register_func_time('model', self.model_predict_funct, new_image_frame)
+
+    def update_oi_ids(self, oi_label_list):
+        super().update_oi_ids(oi_label_list)
+        if self.model_name == 'OIObjModel':
+            self.model.update_oi_ids(oi_label_list)

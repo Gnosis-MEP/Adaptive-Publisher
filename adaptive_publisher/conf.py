@@ -1,6 +1,6 @@
 import os
 
-from decouple import config
+from decouple import config, Csv
 
 SOURCE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SOURCE_DIR)
@@ -15,13 +15,29 @@ TRACER_REPORTING_PORT = config('TRACER_REPORTING_PORT', default='6831')
 SERVICE_STREAM_KEY = config('SERVICE_STREAM_KEY')
 
 
-EVENT_GENERATOR_TYPE = config('EVENT_GENERATOR_TYPE', default='RngEarlyFiltering')
 PUBLISHER_ID = config('PUBLISHER_ID')
 PUBLISHER_INPUT_SOURCE = config('PUBLISHER_INPUT_SOURCE')
 PUBLISHER_FPS = config('PUBLISHER_FPS')
 
 PUBLISHER_RESOLUTION = config('PUBLISHER_RESOLUTION')
 PUBLISHER_WIDTH, PUBLISHER_HEIGHT = [int(v) for v in PUBLISHER_RESOLUTION.split('x')]
+
+EVENT_GENERATOR_TYPE = config('EVENT_GENERATOR_TYPE', default='LocalOCVEventGenerator')
+EARLY_FILTERING_PIPELINE_NAME =  config('EARLY_FILTERING_PIPELINE_NAME', default='ModelPipeline')
+
+DEFAULT_DIFF_THRESHOLD =  config('DEFAULT_DIFF_THRESHOLD', default=0.05, cast=float)
+DEFAULT_CLS_THRESHOLDS =  config(
+    'DEFAULT_CLS_THRESHOLDS', default='0.3, 0.7', cast=lambda x: [float(t) for t in x.split(',')])
+DEFAULT_CLS_UPPER_THRESHOLD =  config('DEFAULT_CLS_UPPER_THRESHOLD', default=0.7, cast=float)
+DEFAULT_OBJ_THRESHOLD =  config('DEFAULT_OBJ_THRESHOLD', default=0.5, cast=float)
+
+DEFAULT_THRESHOLDS = {
+    'diff': DEFAULT_DIFF_THRESHOLD,
+    'oi_cls': DEFAULT_CLS_THRESHOLDS,
+    'oi_obj': DEFAULT_OBJ_THRESHOLD,
+}
+
+DEFAULT_TARGET_FPS = config('DEFAULT_TARGET_FPS', default=PUBLISHER_FPS, cast=float)
 
 
 TEMP_IMG_PATH = os.path.join(PROJECT_ROOT, 'data', 'temp', 'tmp.png')
@@ -32,7 +48,7 @@ CLS_MODEL_ID =  config('CLS_MODEL_ID', default=f'TS-D-Q-1-10S_-300_car_person-bi
 # OBJ_MODEL_NAME = config('OBJ_MODEL_NAME', default=os.path.join(MODELS_PATH, 'yolov5n'))
 OBJ_MODEL_NAME = config('OBJ_MODEL_NAME', default='yolov5n')
 
-
+DEFAULT_OI_LIST = config('DEFAULT_OI_LIST', default='person', cast=Csv())
 
 LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED = config('LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED')
 # LISTEN_EVENT_TYPE_OTHER_EVENT_TYPE = config('LISTEN_EVENT_TYPE_OTHER_EVENT_TYPE')

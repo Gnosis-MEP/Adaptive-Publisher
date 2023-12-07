@@ -5,9 +5,13 @@ from event_service_utils.logging.decorators import timer_logger
 from event_service_utils.services.event_driven import BaseEventDrivenCMDService
 from event_service_utils.tracing.jaeger import init_tracer
 
-from adaptive_publisher.conf import LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED
+from adaptive_publisher.conf import (
+    LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED,
+    DEFAULT_THRESHOLDS,
+    DEFAULT_TARGET_FPS,
+)
+from adaptive_publisher.event_generators import OCVEventGenerator, LocalOCVEventGenerator
 from adaptive_publisher.event_generators.base import MockedEventGenerator
-from adaptive_publisher.event_generators.rng import RngEarlyFiltering
 
 class AdaptivePublisher(BaseEventDrivenCMDService):
     def __init__(self,
@@ -17,6 +21,7 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
                  file_storage_cli,
                  publisher_configs,
                  event_generator_type,
+                 early_filtering_pipeline_name,
                  logging_level,
                  tracer_configs):
         tracer = init_tracer(self.__class__.__name__, **tracer_configs)
@@ -34,31 +39,39 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         self.data_validation_fields = ['id']
         self.event_generator_type = event_generator_type
         self.available_event_generators = {
-            'RngEarlyFiltering': RngEarlyFiltering,
             'MockedEventGenerator': MockedEventGenerator,
+            'OCVEventGenerator': OCVEventGenerator,
+            'LocalOCVEventGenerator': LocalOCVEventGenerator,
         }
+        self.early_filtering_pipeline_name = early_filtering_pipeline_name
         self.file_storage_cli = file_storage_cli
         self.event_generator = None
         self.bufferstream_dict = {}
-        self.early_filtering_rules = {}
+        self.early_filtering_rules = {
+            'pipeline': self.early_filtering_pipeline_name,
+            'thresholds': DEFAULT_THRESHOLDS,
+            'target_fps': DEFAULT_TARGET_FPS,
+        }
         self.publisher_configs = publisher_configs
         self._fake_query_setup()
         self.setup_event_generator()
 
     def _fake_query_setup(self):
         self.bufferstream_dict['bufferstream'] = {
-            'bufferstream': self.stream_factory.create('bufferstream', stype='streamOnly')
+            'fakebufferstream': self.stream_factory.create('fakebufferstream', stype='streamOnly')
         }
 
 
     def setup_event_generator(self):
         self.event_generator = self.available_event_generators[self.event_generator_type](
+            self.early_filtering_pipeline_name,
             self.file_storage_cli,
             self.publisher_configs['id'],
             self.publisher_configs['input_source'],
-            self.publisher_configs['fps'],
+            self.early_filtering_rules['target_fps'],
             self.publisher_configs['width'],
             self.publisher_configs['height'],
+            self.early_filtering_rules['thresholds']
         )
         self.event_generator.setup()
 
@@ -107,7 +120,8 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         self.logger.info(f'Service name: {self.name}')
         # function for simple logging of python dictionary
         self._log_dict('Publishing to bufferstreams:', self.bufferstream_dict)
-        self._log_dict('Early filtering rules:', self.bufferstream_dict)
+        self._log_dict('Early filtering rules:', self.early_filtering_rules)
+        self._log_dict('Processing Times:', self.event_generator.get_stats_dict())
 
     def run(self):
         super(AdaptivePublisher, self).run()

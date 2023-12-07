@@ -1,10 +1,18 @@
 import datetime
+import statistics
 import uuid
 
 import cv2
 
+from adaptive_publisher.models.base_pipeline import MockedPipeline
+from adaptive_publisher.models.pipelines import BLSingleModelPipeline, ModelPipeline
+from adaptive_publisher.conf import DEFAULT_OI_LIST
+
+
 class OCVEventGenerator():
-    def __init__(self, file_storage_cli, publisher_id, input_source, fps, width, height):
+    def __init__(self, ef_pipeline_name, file_storage_cli, publisher_id, input_source, fps, width, height, thresholds):
+        self.thresholds = thresholds
+        self.ef_pipeline_name = ef_pipeline_name
         self.file_storage_cli = file_storage_cli
         self.publisher_id = publisher_id
         self.input_source = input_source
@@ -16,6 +24,16 @@ class OCVEventGenerator():
         self.color_channels = 'BGR'
         self.source_uri = f'genosis://{publisher_id}/{input_source}'
         self.cap = None
+        self.ef_pipeline = None
+        self.setup_ef_pipeline()
+
+    def setup_ef_pipeline(self):
+        if self.ef_pipeline_name == 'ModelPipeline':
+            self.ef_pipeline =  ModelPipeline(
+                self.fps, self.thresholds, oi_label_list=DEFAULT_OI_LIST)
+        else:
+            self.ef_pipeline = BLSingleModelPipeline(
+                self.fps, self.thresholds, self.ef_pipeline_name, oi_label_list=DEFAULT_OI_LIST)
 
     def _clean_input_source(self):
         try:
@@ -51,9 +69,13 @@ class OCVEventGenerator():
                 print(f'read next frame: {self.current_frame_index}')
                 return frame
 
-
     def check_drop_frame(self, frame):
-        raise NotImplementedError()
+        if self.ef_pipeline is None:
+            print(f'NO EF PIPELINE AVAILABLE!!!')
+            has_oi = True
+        else:
+            has_oi = self.ef_pipeline.predict(frame)
+        return not has_oi
 
     def generate_event_from_frame(self, frame):
         # Get current UTC timestamp
@@ -61,8 +83,8 @@ class OCVEventGenerator():
 
         event_id = f'{self.publisher_id}-{str(uuid.uuid4())}'
         # cv2.imwrite('testing.jpg', frame)
-        img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
         # nd_shape = (self.height, self.width, 3)
+        img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
         # reimage_nd_array = self.file_storage_cli.get_image_ndarray_by_key_and_shape(img_uri, nd_shape)
         # cv2.imwrite('testing2.jpg', frame)
 
@@ -92,11 +114,21 @@ class OCVEventGenerator():
         if self.is_open():
             self.cap.release()
 
+    def get_stats_dict(self):
+        times_copy = self.ef_pipeline.processing_times.copy()
 
+        stats_dict = {}
+        for k, v in times_copy.items():
+            stats_dict[f'{k}_avg'] = statistics.mean(v) if len(v) > 0 else 0
+            stats_dict[f'{k}_std'] = statistics.stdev(v) if len(v) > 1 else 0
 
+        return stats_dict
 
 
 class MockedEventGenerator(OCVEventGenerator):
+
+    def setup_ef_pipeline(self):
+        self.ef_pipeline =  MockedPipeline(self.fps, self.thresholds, DEFAULT_OI_LIST)
 
     def setup(self):
         pass

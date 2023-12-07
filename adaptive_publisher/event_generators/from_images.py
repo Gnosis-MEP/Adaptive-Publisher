@@ -14,8 +14,8 @@ from adaptive_publisher.event_generators.base import OCVEventGenerator
 
 class LocalOCVEventGenerator(OCVEventGenerator):
 
-    def __init__(self, file_storage_cli, publisher_id, input_source, fps, width, height):
-        super().__init__(file_storage_cli, publisher_id, input_source, fps, width, height)
+    def __init__(self, model_name, file_storage_cli, publisher_id, input_source, fps, width, height):
+        super().__init__(model_name, file_storage_cli, publisher_id, input_source, fps, width, height)
         source_dirname = os.path.dirname(input_source)
         self.source_uri = f'genosis://{publisher_id}/{source_dirname}'
         self.images_paths = []
