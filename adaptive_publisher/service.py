@@ -66,6 +66,7 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
 
     def setup_event_generator(self):
         self.event_generator = self.available_event_generators[self.event_generator_type](
+            self,
             self.early_filtering_pipeline_name,
             self.file_storage_cli,
             self.publisher_configs['id'],
@@ -109,6 +110,8 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
             self.logger.exception(e)
         finally:
             pass
+        if not self.event_generator.is_open():
+            raise KeyboardInterrupt()
 
     def process_early_filtering_updated(self, event_data):
         # if is early filtering for this buffer streams, than do something, otherwise, ignore.

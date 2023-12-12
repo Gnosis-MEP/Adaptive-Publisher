@@ -104,7 +104,6 @@ class ModelPipeline(BaseModelPipeline):
                 else:
                     has_oi = self.register_func_time('oi_obj', self.oi_obj.predict, oi_obj_img, threshold=self.thresholds['oi_obj'])
 
-                print('= replaced KF')
                 self.replace_key_frame(origin, has_oi)
             else:
                 has_oi = self.last_key_frame_prediction

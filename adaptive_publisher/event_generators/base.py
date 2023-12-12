@@ -12,7 +12,8 @@ from adaptive_publisher.conf import DEFAULT_OI_LIST, EXAMPLE_IMAGES_PATH, REGIST
 
 
 class OCVEventGenerator():
-    def __init__(self, ef_pipeline_name, file_storage_cli, publisher_id, input_source, fps, width, height, thresholds):
+    def __init__(self, service, ef_pipeline_name, file_storage_cli, publisher_id, input_source, fps, width, height, thresholds):
+        self.service = service
         self.thresholds = thresholds
         self.ef_pipeline_name = ef_pipeline_name
         self.file_storage_cli = file_storage_cli
@@ -78,12 +79,12 @@ class OCVEventGenerator():
 
     def check_drop_frame(self, frame):
         if self.ef_pipeline is None:
-            print(f'NO EF PIPELINE AVAILABLE!!!')
+            # print(f'NO EF PIPELINE AVAILABLE!!!')
             has_oi = True
         else:
             has_oi = self.ef_pipeline.predict(frame)
-            if not has_oi:
-                print('DROP!')
+            # if not has_oi:
+            #     print('DROP!')
         if REGISTER_EVAL_DATA:
             self.exp_eval_data['results'][self.current_frame_index] = has_oi
         return not has_oi
@@ -94,7 +95,7 @@ class OCVEventGenerator():
 
         event_id = f'{self.publisher_id}-{str(uuid.uuid4())}'
 
-        cv2.imwrite(os.path.join(EXAMPLE_IMAGES_PATH, 'testing.jpg'), frame)
+        # cv2.imwrite(os.path.join(EXAMPLE_IMAGES_PATH, 'testing.jpg'), frame)
         # nd_shape = (self.height, self.width, 3)
         img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
         # reimage_nd_array = self.file_storage_cli.get_image_ndarray_by_key_and_shape(img_uri, nd_shape)
@@ -117,10 +118,13 @@ class OCVEventGenerator():
 
     def next_event(self):
         next_frame = self.read_next_frame()
+        if self.current_frame_index % 100 == 0:
+            self.service.logger.info(f'Current Frame: {self.current_frame_index}')
         if next_frame is not None:
             should_drop_frame = self.check_drop_frame(next_frame)
             if not should_drop_frame:
                 return self.generate_event_from_frame(next_frame)
+
 
     def close(self):
         if self.is_open():
