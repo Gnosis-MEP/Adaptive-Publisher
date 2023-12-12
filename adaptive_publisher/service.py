@@ -1,3 +1,4 @@
+import json
 import time
 import threading
 
@@ -7,6 +8,7 @@ from event_service_utils.tracing.jaeger import init_tracer
 
 from adaptive_publisher.conf import (
     LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED,
+    TMP_EXP_EVAL_DATA_JSON_PATH,
     DEFAULT_THRESHOLDS,
     DEFAULT_TARGET_FPS,
 )
@@ -58,7 +60,7 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
 
     def _fake_query_setup(self):
         self.bufferstream_dict['bufferstream'] = {
-            'fakebufferstream': self.stream_factory.create('fakebufferstream', stype='streamOnly')
+            'bufferstream': self.stream_factory.create('fakebufferstream', stype='streamOnly')
         }
 
 
@@ -74,6 +76,10 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
             self.early_filtering_rules['thresholds']
         )
         self.event_generator.setup()
+
+    def experiment_temporary_exit_data_gathering(self):
+        with open(TMP_EXP_EVAL_DATA_JSON_PATH, 'w') as f:
+            json.dump(self.event_generator._get_experiment_eval_data(), f, indent=4)
 
     def process_data(self):
         self.logger.debug('Processing DATA..')
@@ -97,6 +103,7 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
                     self.write_event_with_trace(event_data, bufferstream)
         except KeyboardInterrupt as ke:
             self.event_generator.close()
+            raise ke
         except Exception as e:
             self.logger.error(f'Error processing event_data "{event_data}", while sending to buffer streams: "{buffer_stream_key_list}"')
             self.logger.exception(e)
@@ -126,11 +133,17 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
     def run(self):
         super(AdaptivePublisher, self).run()
         self.log_state()
-
-        self.cmd_thread = threading.Thread(target=self.run_forever, args=(self.process_cmd,))
-        self.data_thread = threading.Thread(target=self.run_forever, args=(self.process_data,))
-        self.cmd_thread.start()
-        self.data_thread.start()
-        self.cmd_thread.join()
-        self.data_thread.join()
-
+        try:
+            # self.cmd_thread = threading.Thread(target=self.run_forever, args=(self.process_cmd,))
+            # self.cmd_thread = threading.Thread(target=self.run_forever, args=(self.log_state,))
+            # self.data_thread = threading.Thread(target=self.run_forever, args=(self.process_data,))
+            # self.cmd_thread.start()
+            # self.data_thread.start()
+            # self.cmd_thread.join()
+            # self.data_thread.join()
+            self.run_forever(self.process_data)
+        except:
+            pass
+        finally:
+            self.log_state()
+            self.experiment_temporary_exit_data_gathering()

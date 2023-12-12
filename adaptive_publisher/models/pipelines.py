@@ -1,10 +1,16 @@
+import os
 import math
 import time
 
 import cv2
 import torch
 
-from adaptive_publisher.models.transforms.transf_ocv import get_transforms
+
+from adaptive_publisher.conf import USE_OCV_TRANSFORMS, EXAMPLE_IMAGES_PATH, DEFAULT_CACHED_FRAME_RATE_MULTIPLIER
+if USE_OCV_TRANSFORMS:
+    from adaptive_publisher.models.transforms.transf_ocv import get_transforms
+else:
+    from adaptive_publisher.models.transforms.transf_torch import get_transforms
 
 from adaptive_publisher.models.pixel_diff import CVDiffModel
 from adaptive_publisher.models.oi_cls import OIClsModel
@@ -54,9 +60,13 @@ class ModelPipeline(BaseModelPipeline):
         return obj_img, cls_img
 
     def replace_key_frame(self, new_image_frame, prediction):
+        # if self.last_key_frame is not None:
+        #     cv2.imwrite(os.path.join(EXAMPLE_IMAGES_PATH,'last_kf.jpg'), self.last_key_frame)
         del self.last_key_frame
         self.last_key_frame = new_image_frame
         self.last_key_frame_prediction = prediction
+        # cv2.imwrite(os.path.join(EXAMPLE_IMAGES_PATH,'new_kf.jpg'), self.last_key_frame)
+
 
     def calculate_cached_result_count(self):
         total_cached_results_frames = 0
@@ -65,20 +75,26 @@ class ModelPipeline(BaseModelPipeline):
         except IndexError:
             pass
         else:
+            # processing_time_ratio = last_processing_time / self.target_processing_time
             processing_time_left = self.target_processing_time - last_processing_time
             if processing_time_left < 0:
+            # if processing_time_ratio > 1:
                 missing_time = processing_time_left * -1
-                total_cached_results_frames = math.ceil(missing_time / self.target_processing_time)
+                cached_float_frames = DEFAULT_CACHED_FRAME_RATE_MULTIPLIER * missing_time / self.target_processing_time
+                total_cached_results_frames = math.ceil(cached_float_frames)
+                # total_cached_results_frames = math.ceil(self.target_fps * ((processing_time_ratio) - 1))
+                # print(f'bIG P TIME: {self.target_fps} {processing_time_ratio} {total_cached_results_frames}')
         return total_cached_results_frames
 
     def run_pipeline(self, new_image_frame):
         has_oi = False
         with torch.no_grad():
             diff_perc = 1.0
-            new_image_frame = self.global_transform(new_image_frame)
+            origin = new_image_frame
             if self.last_key_frame is not None:
-                diff_perc = self.register_func_time('diff', self.pixel_diff.predict, new_image_frame, last_key_frame=self.last_key_frame)
+                diff_perc = self.register_func_time('diff', self.pixel_diff.predict, origin, last_key_frame=self.last_key_frame)
             if diff_perc > self.thresholds['diff']:
+                new_image_frame = self.global_transform(new_image_frame)
                 oi_obj_img, oi_cls_img  = self.oi_transforms(new_image_frame)
                 oi_cls_conf = self.register_func_time('oi_cls', self.oi_cls.predict, oi_cls_img)
                 if oi_cls_conf < self.thresholds['oi_cls'][0]:
@@ -88,7 +104,8 @@ class ModelPipeline(BaseModelPipeline):
                 else:
                     has_oi = self.register_func_time('oi_obj', self.oi_obj.predict, oi_obj_img, threshold=self.thresholds['oi_obj'])
 
-                self.replace_key_frame(new_image_frame, has_oi)
+                print('= replaced KF')
+                self.replace_key_frame(origin, has_oi)
             else:
                 has_oi = self.last_key_frame_prediction
             return has_oi
@@ -122,7 +139,7 @@ class BLSingleModelPipeline(BaseModelPipeline):
             self.model_predict_funct = lambda x: self.model.predict(x) > self.thresholds['diff']
         elif self.model_name == 'OIClsModel':
             self.model = OIClsModel()
-            self.model_predict_funct = self.model.predict
+            self.model_predict_funct = lambda x: self.model.predict(x) > self.thresholds['oi_cls'][0]
         elif self.model_name == 'OIObjModel':
             self.model = OIObjModel(oi_label_list=self.oi_label_list)
             self.model_predict_funct = self.model.predict
@@ -136,11 +153,16 @@ class BLSingleModelPipeline(BaseModelPipeline):
 
         elif self.model_name == 'OIClsModel':
             self.cls_transf = get_transforms('CLS')
-            self.model_transf_funct = lambda new_image_frame: self.global_transform(self.cls_transf(new_image_frame))
+
+            if USE_OCV_TRANSFORMS:
+                self.model_transf_funct = lambda new_image_frame: self.cls_transf(self.global_transform(new_image_frame))
+            else:
+                from torchvision import transforms
+                self.model_transf_funct = lambda new_image_frame: self.cls_transf(transforms.ToPILImage()(self.global_transform(new_image_frame)))
 
         elif self.model_name == 'OIObjModel':
             self.obj_transf = get_transforms('OBJ')
-            self.model_transf_funct = lambda new_image_frame: self.global_transform(self.obj_transf(new_image_frame))
+            self.model_transf_funct = lambda new_image_frame: self.obj_transf(self.global_transform(new_image_frame))
 
     def run_pipeline_or_cached(self, new_image_frame):
         new_image_frame = self.register_func_time('model_transf', self.model_transf_funct, new_image_frame)

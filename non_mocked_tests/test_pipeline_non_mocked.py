@@ -83,3 +83,12 @@ class TestModelPipelineActualModels(TestCase):
         self.pipeline.last_key_frame = self.mocked_img(576, 768)
         ret = self.pipeline.predict(img_bgr)
         self.assertTrue(ret)
+
+    def test_showimg_pipeline_with_real_image(self):
+        img_bgr = cv2.imread(os.path.join(EXAMPLE_IMAGES_PATH, 'dog_bike_car.jpg'))
+        import matplotlib
+        from matplotlib import pyplot as plt
+        plt.imshow(img_bgr)
+        plt.show()
+        import ipdb; ipdb.set_trace()
+        pass

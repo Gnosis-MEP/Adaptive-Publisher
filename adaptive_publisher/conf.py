@@ -14,10 +14,9 @@ TRACER_REPORTING_PORT = config('TRACER_REPORTING_PORT', default='6831')
 
 SERVICE_STREAM_KEY = config('SERVICE_STREAM_KEY')
 
-
-PUBLISHER_ID = config('PUBLISHER_ID')
 PUBLISHER_INPUT_SOURCE = config('PUBLISHER_INPUT_SOURCE')
-PUBLISHER_FPS = config('PUBLISHER_FPS')
+PUBLISHER_ID = config('PUBLISHER_ID', default=os.path.basename(PUBLISHER_INPUT_SOURCE))
+PUBLISHER_FPS = config('PUBLISHER_FPS', cast=float)
 
 PUBLISHER_RESOLUTION = config('PUBLISHER_RESOLUTION')
 PUBLISHER_WIDTH, PUBLISHER_HEIGHT = [int(v) for v in PUBLISHER_RESOLUTION.split('x')]
@@ -25,10 +24,15 @@ PUBLISHER_WIDTH, PUBLISHER_HEIGHT = [int(v) for v in PUBLISHER_RESOLUTION.split(
 EVENT_GENERATOR_TYPE = config('EVENT_GENERATOR_TYPE', default='LocalOCVEventGenerator')
 EARLY_FILTERING_PIPELINE_NAME =  config('EARLY_FILTERING_PIPELINE_NAME', default='ModelPipeline')
 
+USE_OCV_TRANSFORMS = config('USE_OCV_TRANSFORMS', default=True, cast=bool)
+
+DEFAULT_TARGET_FPS = config('DEFAULT_TARGET_FPS', default=PUBLISHER_FPS, cast=float)
+DEFAULT_CACHED_FRAME_RATE_MULTIPLIER = config('DEFAULT_CACHED_FRAME_RATE_MULTIPLIER', default=1.0, cast=float)
+DEFAULT_OI_LIST = config('DEFAULT_OI_LIST', default='person', cast=Csv())
+
 DEFAULT_DIFF_THRESHOLD =  config('DEFAULT_DIFF_THRESHOLD', default=0.05, cast=float)
 DEFAULT_CLS_THRESHOLDS =  config(
     'DEFAULT_CLS_THRESHOLDS', default='0.3, 0.7', cast=lambda x: [float(t) for t in x.split(',')])
-DEFAULT_CLS_UPPER_THRESHOLD =  config('DEFAULT_CLS_UPPER_THRESHOLD', default=0.7, cast=float)
 DEFAULT_OBJ_THRESHOLD =  config('DEFAULT_OBJ_THRESHOLD', default=0.5, cast=float)
 
 DEFAULT_THRESHOLDS = {
@@ -37,18 +41,26 @@ DEFAULT_THRESHOLDS = {
     'oi_obj': DEFAULT_OBJ_THRESHOLD,
 }
 
-DEFAULT_TARGET_FPS = config('DEFAULT_TARGET_FPS', default=PUBLISHER_FPS, cast=float)
-
-
-TEMP_IMG_PATH = os.path.join(PROJECT_ROOT, 'data', 'temp', 'tmp.png')
-
 MODELS_PATH = config('MODELS_PATH', default=os.path.join(PROJECT_ROOT, 'data', 'models'))
 EXAMPLE_IMAGES_PATH = config('EXAMPLE_IMAGES_PATH', default=os.path.join(PROJECT_ROOT, 'data', 'example_images'))
 CLS_MODEL_ID =  config('CLS_MODEL_ID', default=f'TS-D-Q-1-10S_-300_car_person-bird-dog')
 # OBJ_MODEL_NAME = config('OBJ_MODEL_NAME', default=os.path.join(MODELS_PATH, 'yolov5n'))
 OBJ_MODEL_NAME = config('OBJ_MODEL_NAME', default='yolov5n')
 
-DEFAULT_OI_LIST = config('DEFAULT_OI_LIST', default='person', cast=Csv())
+TEMP_IMG_PATH = os.path.join(PROJECT_ROOT, 'data', 'eval', f'tmp.png')
+
+EVAL_ID = f'{PUBLISHER_ID}-{int(PUBLISHER_FPS)}-{PUBLISHER_RESOLUTION}-{EARLY_FILTERING_PIPELINE_NAME}'
+EVAL_ID += f'-{"cv" if USE_OCV_TRANSFORMS else "torch"}'
+EVAL_ID += f'-{int(DEFAULT_TARGET_FPS)}-{"_".join(DEFAULT_OI_LIST)}-{int(DEFAULT_CACHED_FRAME_RATE_MULTIPLIER*100)}'
+EVAL_ID += f'-diff_{int(DEFAULT_DIFF_THRESHOLD*100)}'
+EVAL_ID += f'-cls_{CLS_MODEL_ID}_{"_".join([str(int(t*100)) for t in DEFAULT_CLS_THRESHOLDS])}'
+EVAL_ID += f'-obj_{OBJ_MODEL_NAME}_{int(DEFAULT_OBJ_THRESHOLD*100)}'
+
+print(f'EVAL ID!!!!!========: {EVAL_ID}')
+TMP_EXP_EVAL_DATA_JSON_PATH =  os.path.join(PROJECT_ROOT, 'data', 'eval', f'{EVAL_ID}.json')
+print(f'TMP_EXP_EVAL_DATA_JSON_PATH!!!!!========: {TMP_EXP_EVAL_DATA_JSON_PATH}')
+
+REGISTER_EVAL_DATA = config('REGISTER_EVAL_DATA', default=True)
 
 LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED = config('LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED')
 # LISTEN_EVENT_TYPE_OTHER_EVENT_TYPE = config('LISTEN_EVENT_TYPE_OTHER_EVENT_TYPE')

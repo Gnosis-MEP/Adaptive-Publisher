@@ -13,12 +13,12 @@ from adaptive_publisher.event_generators.base import OCVEventGenerator
 
 
 class LocalOCVEventGenerator(OCVEventGenerator):
-
-    def __init__(self, model_name, file_storage_cli, publisher_id, input_source, fps, width, height):
-        super().__init__(model_name, file_storage_cli, publisher_id, input_source, fps, width, height)
+    def __init__(self, ef_pipeline_name, file_storage_cli, publisher_id, input_source, fps, width, height, thresholds):
+        super().__init__(ef_pipeline_name, file_storage_cli, publisher_id, input_source, fps, width, height, thresholds)
         source_dirname = os.path.dirname(input_source)
         self.source_uri = f'genosis://{publisher_id}/{source_dirname}'
         self.images_paths = []
+        self._is_open = True
 
     def setup(self):
         if 'http' in self.input_source:
@@ -28,7 +28,7 @@ class LocalOCVEventGenerator(OCVEventGenerator):
             files_names = rg.findall(ret.text)
             self.images_paths = sorted([os.path.join(self.input_source, f) for f in files_names], key=lambda s: int(s.split('frame_')[1].split('.png')[0]))
         else:
-            self.images_paths = glob.glob(os.path.join(self.input_source, '*.png'))
+            self.images_paths = sorted(glob.glob(os.path.join(self.input_source, '*.png')), key=lambda s: int(os.path.basename(s).split('frame_')[1].split('.png')[0]))
         self.expected_total_frames = len(self.images_paths)
 
     def read_next_frame(self):
@@ -53,3 +53,8 @@ class LocalOCVEventGenerator(OCVEventGenerator):
         with open(TEMP_IMG_PATH, 'wb') as out_file:
             shutil.copyfileobj(response.raw, out_file)
         return TEMP_IMG_PATH
+
+    def is_open(self):
+        return self._is_open
+    def close(self):
+        self._is_open = False

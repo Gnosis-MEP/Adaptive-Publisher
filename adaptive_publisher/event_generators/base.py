@@ -1,12 +1,14 @@
 import datetime
+import os
 import statistics
 import uuid
 
+import numpy as np
 import cv2
 
 from adaptive_publisher.models.base_pipeline import MockedPipeline
 from adaptive_publisher.models.pipelines import BLSingleModelPipeline, ModelPipeline
-from adaptive_publisher.conf import DEFAULT_OI_LIST
+from adaptive_publisher.conf import DEFAULT_OI_LIST, EXAMPLE_IMAGES_PATH, REGISTER_EVAL_DATA
 
 
 class OCVEventGenerator():
@@ -26,6 +28,11 @@ class OCVEventGenerator():
         self.cap = None
         self.ef_pipeline = None
         self.setup_ef_pipeline()
+        self.exp_eval_data = {'results': {}}
+
+    def _get_experiment_eval_data(self):
+        self.exp_eval_data['stats'] = self.get_stats_dict()
+        return self.exp_eval_data
 
     def setup_ef_pipeline(self):
         if self.ef_pipeline_name == 'ModelPipeline':
@@ -59,14 +66,14 @@ class OCVEventGenerator():
         self.query_ids = list(set(self.query_ids).add(new_query_id))
 
     def read_next_frame(self):
-        print('reading next frame')
+        # print('reading next frame')
         # raise NotImplementedError()
         # ovc read stuff
         if self.cap.isOpened():
             ret, frame = self.cap.read()
             if ret:
                 self.current_frame_index += 1
-                print(f'read next frame: {self.current_frame_index}')
+                # print(f'read next frame: {self.current_frame_index}')
                 return frame
 
     def check_drop_frame(self, frame):
@@ -75,6 +82,10 @@ class OCVEventGenerator():
             has_oi = True
         else:
             has_oi = self.ef_pipeline.predict(frame)
+            if not has_oi:
+                print('DROP!')
+        if REGISTER_EVAL_DATA:
+            self.exp_eval_data['results'][self.current_frame_index] = has_oi
         return not has_oi
 
     def generate_event_from_frame(self, frame):
@@ -82,7 +93,8 @@ class OCVEventGenerator():
         timestamp = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')
 
         event_id = f'{self.publisher_id}-{str(uuid.uuid4())}'
-        # cv2.imwrite('testing.jpg', frame)
+
+        cv2.imwrite(os.path.join(EXAMPLE_IMAGES_PATH, 'testing.jpg'), frame)
         # nd_shape = (self.height, self.width, 3)
         img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
         # reimage_nd_array = self.file_storage_cli.get_image_ndarray_by_key_and_shape(img_uri, nd_shape)
@@ -121,6 +133,12 @@ class OCVEventGenerator():
         for k, v in times_copy.items():
             stats_dict[f'{k}_avg'] = statistics.mean(v) if len(v) > 0 else 0
             stats_dict[f'{k}_std'] = statistics.stdev(v) if len(v) > 1 else 0
+            stats_dict[f'FPS_{k}_avg'] = 1 / statistics.mean(v) if len(v) > 0 else 0
+            stats_dict[f'FPS_{k}_std'] = 1 / statistics.stdev(v) if len(v) > 1 else 0
+            stats_dict[f'FPS_{k}_50_75_90_perc'] = [float(f) for f in 1 / np.percentile(v, [50, 75, 90])] if len(v) > 0 else 0
+            stats_dict[f'{k}_SIZE'] = len(v)
+            if 'predict' in k:
+                stats_dict['processing_times'] = v
 
         return stats_dict
 
