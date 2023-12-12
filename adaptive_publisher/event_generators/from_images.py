@@ -7,7 +7,7 @@ import cv2
 import requests
 
 
-from adaptive_publisher.conf import TEMP_IMG_PATH
+from adaptive_publisher.conf import TEMP_IMG_PATH, TMP_IGNORE_N_FRAMES
 from adaptive_publisher.event_generators.base import OCVEventGenerator
 
 
@@ -29,6 +29,7 @@ class LocalOCVEventGenerator(OCVEventGenerator):
             self.images_paths = sorted([os.path.join(self.input_source, f) for f in files_names], key=lambda s: int(s.split('frame_')[1].split('.png')[0]))
         else:
             self.images_paths = sorted(glob.glob(os.path.join(self.input_source, '*.png')), key=lambda s: int(os.path.basename(s).split('frame_')[1].split('.png')[0]))
+            self.images_paths = self.images_paths[TMP_IGNORE_N_FRAMES:]
         self.expected_total_frames = len(self.images_paths)
 
     def read_next_frame(self):

@@ -56,7 +56,8 @@ EVAL_ID += f'-diff_{int(DEFAULT_DIFF_THRESHOLD*100)}'
 EVAL_ID += f'-cls_{CLS_MODEL_ID}_{"_".join([str(int(t*100)) for t in DEFAULT_CLS_THRESHOLDS])}'
 EVAL_ID += f'-obj_{OBJ_MODEL_NAME}_{int(DEFAULT_OBJ_THRESHOLD*100)}'
 
-TMP_EXP_EVAL_DATA_JSON_PATH =  os.path.join(PROJECT_ROOT, 'data', 'eval', f'{EVAL_ID}.json')
+TMP_EXP_EVAL_DATA_JSON_PATH = os.path.join(PROJECT_ROOT, 'data', 'eval', f'{EVAL_ID}.json')
+TMP_IGNORE_N_FRAMES = config('TMP_IGNORE_N_FRAMES', default=300, cast=int)
 
 REGISTER_EVAL_DATA = config('REGISTER_EVAL_DATA', default=True, cast=bool)
 
