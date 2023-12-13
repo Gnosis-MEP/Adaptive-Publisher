@@ -8,7 +8,7 @@ import cv2
 
 from adaptive_publisher.models.base_pipeline import MockedPipeline
 from adaptive_publisher.models.pipelines import BLSingleModelPipeline, ModelPipeline
-from adaptive_publisher.conf import DEFAULT_OI_LIST, EXAMPLE_IMAGES_PATH, REGISTER_EVAL_DATA
+from adaptive_publisher.conf import DEFAULT_OI_LIST, EXAMPLE_IMAGES_PATH, REGISTER_EVAL_DATA, TMP_IGNORE_N_FRAMES
 
 
 class OCVEventGenerator():
@@ -86,7 +86,7 @@ class OCVEventGenerator():
             # if not has_oi:
             #     print('DROP!')
         if REGISTER_EVAL_DATA:
-            self.exp_eval_data['results'][self.current_frame_index] = has_oi
+            self.exp_eval_data['results'][f'frame_{TMP_IGNORE_N_FRAMES + self.current_frame_index + 1}'] = has_oi
         return not has_oi
 
     def generate_event_from_frame(self, frame):
@@ -95,11 +95,8 @@ class OCVEventGenerator():
 
         event_id = f'{self.publisher_id}-{str(uuid.uuid4())}'
 
-        # cv2.imwrite(os.path.join(EXAMPLE_IMAGES_PATH, 'testing.jpg'), frame)
-        # nd_shape = (self.height, self.width, 3)
-        img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
-        # reimage_nd_array = self.file_storage_cli.get_image_ndarray_by_key_and_shape(img_uri, nd_shape)
-        # cv2.imwrite('testing2.jpg', frame)
+        # img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
+        img_uri = 'mocked_img_uri'
 
         event_data = {
             'id': event_id,

@@ -101,7 +101,7 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
                 for buffer_stream_key in buffer_stream_key_list:
                     bufferstream_data = self.bufferstream_dict[buffer_stream_key]
                     bufferstream = bufferstream_data['bufferstream']
-                    self.write_event_with_trace(event_data, bufferstream)
+                    # self.write_event_with_trace(event_data, bufferstream)
         except KeyboardInterrupt as ke:
             self.event_generator.close()
             raise ke
