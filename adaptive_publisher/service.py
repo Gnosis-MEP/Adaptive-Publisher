@@ -2,6 +2,8 @@ import json
 import time
 import threading
 
+from opentracing.ext import tags
+from opentracing.propagation import Format
 from event_service_utils.logging.decorators import timer_logger
 from event_service_utils.services.event_driven import BaseEventDrivenCMDService
 from event_service_utils.tracing.jaeger import init_tracer
@@ -60,7 +62,7 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
 
     def _fake_query_setup(self):
         self.bufferstream_dict['bufferstream'] = {
-            'bufferstream': self.stream_factory.create('fakebufferstream', stype='streamOnly')
+            'bufferstream': self.stream_factory.create('1dcc691eca747c0654c42232f7abf12b', stype='streamOnly')
         }
 
 
@@ -77,6 +79,7 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
             self.early_filtering_rules['thresholds']
         )
         self.event_generator.setup()
+        self.event_generator.add_query_id('e4e4701af89d339d750bf3ef77ff6498')
 
     def experiment_temporary_exit_data_gathering(self):
         with open(TMP_EXP_EVAL_DATA_JSON_PATH, 'w') as f:
@@ -94,14 +97,25 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
             return
         event_data = None
         buffer_stream_key_list = None
+
+
         try:
-            event_data = self.event_generator.next_event()
             buffer_stream_key_list = self.bufferstream_dict.keys()
-            if event_data is not None and len(buffer_stream_key_list) > 0:
-                for buffer_stream_key in buffer_stream_key_list:
-                    bufferstream_data = self.bufferstream_dict[buffer_stream_key]
-                    bufferstream = bufferstream_data['bufferstream']
-                    # self.write_event_with_trace(event_data, bufferstream)
+            if len(buffer_stream_key_list) > 0:
+
+                with self.tracer.start_active_span('process_next_frame', child_of=None) as scope:
+                    tracer_tags = {
+                        tags.SPAN_KIND: tags.SPAN_KIND_PRODUCER,
+                    }
+                    for tag, value in tracer_tags.items():
+                        scope.span.set_tag(tag, value)
+
+                    event_data = self.event_generator.next_event()
+                    if event_data is not None:
+                        for buffer_stream_key in buffer_stream_key_list:
+                            bufferstream_data = self.bufferstream_dict[buffer_stream_key]
+                            bufferstream = bufferstream_data['bufferstream']
+                            self.write_event_with_trace(event_data, bufferstream)
         except KeyboardInterrupt as ke:
             self.event_generator.close()
             raise ke

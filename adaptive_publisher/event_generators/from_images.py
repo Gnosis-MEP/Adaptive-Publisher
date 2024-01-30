@@ -16,7 +16,7 @@ class LocalOCVEventGenerator(OCVEventGenerator):
     def __init__(self, service, ef_pipeline_name, file_storage_cli, publisher_id, input_source, fps, width, height, thresholds):
         super().__init__(service, ef_pipeline_name, file_storage_cli, publisher_id, input_source, fps, width, height, thresholds)
         source_dirname = os.path.dirname(input_source)
-        self.source_uri = f'genosis://{publisher_id}/{source_dirname}'
+        self.source_uri = f'gnosis://{publisher_id}/{source_dirname}'
         self.images_paths = []
         self._is_open = True
 
@@ -33,19 +33,20 @@ class LocalOCVEventGenerator(OCVEventGenerator):
         self.expected_total_frames = len(self.images_paths)
 
     def read_next_frame(self):
-        # print('reading next frame')
-        if len(self.images_paths) != 0:
-            next_frame_index = self.current_frame_index + 1
-            if next_frame_index < self.expected_total_frames:
-                image_path = self.images_paths[next_frame_index]
-                if 'http' in image_path:
-                    image_path = self.dl_temp_image(image_path)
-                frame = cv2.imread(image_path)
-                self.current_frame_index = next_frame_index
-                # print(f'read next frame: {self.current_frame_index}')
-                return frame
-            else:
-                self._is_open = False
+        with self.service.tracer.start_active_span('read_next_frame') as scope:
+            # print('reading next frame')
+            if len(self.images_paths) != 0:
+                next_frame_index = self.current_frame_index + 1
+                if next_frame_index < self.expected_total_frames:
+                    image_path = self.images_paths[next_frame_index]
+                    if 'http' in image_path:
+                        image_path = self.dl_temp_image(image_path)
+                    frame = cv2.imread(image_path)
+                    self.current_frame_index = next_frame_index
+                    # print(f'read next frame: {self.current_frame_index}')
+                    return frame
+                else:
+                    self._is_open = False
 
     def dl_temp_image(self, image_path_url):
         response = requests.get(image_path_url, stream=True)

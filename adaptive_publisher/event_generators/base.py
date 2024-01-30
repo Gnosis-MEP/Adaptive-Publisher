@@ -6,6 +6,10 @@ import uuid
 import numpy as np
 import cv2
 
+from opentracing.ext import tags
+from opentracing.propagation import Format
+from event_service_utils.services.tracer import EVENT_ID_TAG
+
 from adaptive_publisher.models.base_pipeline import MockedPipeline
 from adaptive_publisher.models.pipelines import BLSingleModelPipeline, ModelPipeline
 from adaptive_publisher.conf import DEFAULT_OI_LIST, EXAMPLE_IMAGES_PATH, REGISTER_EVAL_DATA, TMP_IGNORE_N_FRAMES
@@ -25,7 +29,7 @@ class OCVEventGenerator():
         self.query_ids = []
         self.current_frame_index = -1
         self.color_channels = 'BGR'
-        self.source_uri = f'genosis://{publisher_id}/{input_source}'
+        self.source_uri = f'gnosis://{publisher_id}/{input_source}'
         self.cap = None
         self.ef_pipeline = None
         self.setup_ef_pipeline()
@@ -64,57 +68,65 @@ class OCVEventGenerator():
         return (self.cap and self.cap.isOpened())
 
     def add_query_id(self, new_query_id):
-        self.query_ids = list(set(self.query_ids).add(new_query_id))
+        query_set = set(self.query_ids)
+        query_set.add(new_query_id)
+        self.query_ids = list(query_set)
 
     def read_next_frame(self):
         # print('reading next frame')
         # raise NotImplementedError()
         # ovc read stuff
-        if self.cap.isOpened():
-            ret, frame = self.cap.read()
-            if ret:
-                self.current_frame_index += 1
-                # print(f'read next frame: {self.current_frame_index}')
-                return frame
+
+        with self.service.tracer.start_active_span('read_next_frame') as scope:
+            if self.cap.isOpened():
+                ret, frame = self.cap.read()
+                if ret:
+                    self.current_frame_index += 1
+                    # print(f'read next frame: {self.current_frame_index}')
+                    return frame
 
     def check_drop_frame(self, frame):
-        if self.ef_pipeline is None:
-            # print(f'NO EF PIPELINE AVAILABLE!!!')
-            has_oi = True
-        else:
-            has_oi = self.ef_pipeline.predict(frame)
-            # if not has_oi:
-            #     print('DROP!')
-        if REGISTER_EVAL_DATA:
-            self.exp_eval_data['results'][f'frame_{TMP_IGNORE_N_FRAMES + self.current_frame_index + 1}'] = has_oi
-        return not has_oi
+        with self.service.tracer.start_active_span('check_drop_frame') as scope:
+            if self.ef_pipeline is None:
+                # print(f'NO EF PIPELINE AVAILABLE!!!')
+                has_oi = True
+            else:
+                has_oi = self.ef_pipeline.predict(frame)
+                # if not has_oi:
+                #     print('DROP!')
+            if REGISTER_EVAL_DATA:
+                self.exp_eval_data['results'][f'frame_{TMP_IGNORE_N_FRAMES + self.current_frame_index + 1}'] = has_oi
+            return not has_oi
 
     def generate_event_from_frame(self, frame):
-        # Get current UTC timestamp
-        timestamp = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')
+        with self.service.tracer.start_active_span('generate_event_from_frame') as scope:
+            # Get current UTC timestamp
+            timestamp = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')
 
-        event_id = f'{self.publisher_id}-{str(uuid.uuid4())}'
+            event_id = f'{self.publisher_id}-{str(uuid.uuid4())}'
 
-        # img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
-        img_uri = 'mocked_img_uri'
+            img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
+            # img_uri = 'mocked_img_uri'
 
-        event_data = {
-            'id': event_id,
-            'publisher_id': self.publisher_id,
-            'source': self.source_uri,
-            'image_url': img_uri,
-            'vekg': {},
-            'query_ids': self.query_ids,
-            'width': self.width,
-            'height': self.height,
-            'color_channels': self.color_channels,
-            'frame_index': self.current_frame_index,
-            'timestamp': timestamp,
-        }
-        return event_data
+            event_data = {
+                'id': event_id,
+                'publisher_id': self.publisher_id,
+                'source': self.source_uri,
+                'image_url': img_uri,
+                'vekg': {},
+                'query_ids': self.query_ids,
+                'width': self.width,
+                'height': self.height,
+                'color_channels': self.color_channels,
+                'frame_index': self.current_frame_index,
+                'timestamp': timestamp,
+            }
+            return event_data
 
     def next_event(self):
         next_frame = self.read_next_frame()
+
+
         if self.current_frame_index % 100 == 0:
             self.service.logger.info(f'Current Frame: {self.current_frame_index}')
         if next_frame is not None:
