@@ -102,7 +102,6 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         try:
             buffer_stream_key_list = self.bufferstream_dict.keys()
             if len(buffer_stream_key_list) > 0:
-
                 with self.tracer.start_active_span('process_next_frame', child_of=None) as scope:
                     tracer_tags = {
                         tags.SPAN_KIND: tags.SPAN_KIND_PRODUCER,

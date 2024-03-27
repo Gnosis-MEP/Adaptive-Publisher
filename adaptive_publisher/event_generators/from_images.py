@@ -23,7 +23,6 @@ class LocalOCVEventGenerator(OCVEventGenerator):
     def setup(self):
         if 'http' in self.input_source:
             ret = requests.get(self.input_source)
-
             rg = re.compile(r'href="(.*)"')
             files_names = rg.findall(ret.text)
             self.images_paths = sorted([os.path.join(self.input_source, f) for f in files_names], key=lambda s: int(s.split('frame_')[1].split('.png')[0]))

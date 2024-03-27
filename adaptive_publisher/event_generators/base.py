@@ -33,7 +33,11 @@ class OCVEventGenerator():
         self.cap = None
         self.ef_pipeline = None
         self.setup_ef_pipeline()
-        self.exp_eval_data = {'results': {}}
+        self.exp_eval_data = {
+            'results': {},
+            # 'storage': []
+        }
+
 
     def _get_experiment_eval_data(self):
         self.exp_eval_data['stats'] = self.get_stats_dict()
@@ -106,6 +110,11 @@ class OCVEventGenerator():
             event_id = f'{self.publisher_id}-{str(uuid.uuid4())}'
 
             img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
+
+
+            # store_size = self.file_storage_cli.client.execute_command(f'MEMORY USAGE {img_uri}')
+            # self.exp_eval_data['storage'].append(store_size)
+            # self.service.logger.info('>>> store size: ' + str(store_size))
             # img_uri = 'mocked_img_uri'
 
             event_data = {
