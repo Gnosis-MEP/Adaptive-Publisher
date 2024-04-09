@@ -1,5 +1,6 @@
 import datetime
 import os
+# from sys import getsizeof
 import statistics
 import uuid
 
@@ -112,9 +113,11 @@ class OCVEventGenerator():
             img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
 
 
+            # store_size = getsizeof(frame.tobytes(order='C'))
+
             # store_size = self.file_storage_cli.client.execute_command(f'MEMORY USAGE {img_uri}')
             # self.exp_eval_data['storage'].append(store_size)
-            # self.service.logger.info('>>> store size: ' + str(store_size))
+            # self.service.logger.info('>>> store size: ' + str(store_size) + ' <> ' + str(frame.nbytes))
             # img_uri = 'mocked_img_uri'
 
             event_data = {
