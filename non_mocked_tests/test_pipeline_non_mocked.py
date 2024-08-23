@@ -11,18 +11,20 @@ from adaptive_publisher.models.transforms.transf_ocv import (
     get_transforms_ocv
 )
 from adaptive_publisher.models.transforms.transf_torch import get_transforms_torch
-from adaptive_publisher.conf import EXAMPLE_IMAGES_PATH
+from adaptive_publisher.conf import EXAMPLE_IMAGES_PATH, CLS_MODEL_ID
 
 
 class TestModelPipelineActualModels(TestCase):
 
     def setUp(self):
+
         self.thresholds = {
             'diff': 0.05,
             'oi_cls': (0.3, 0.8),
             'oi_obj': 0.5
         }
         self.oi_label_list = ['car']
+        assert CLS_MODEL_ID == 'TS-D-Q-1-10S_-300_car_person-bird-dog', "Please set CLS_MODEL_ID to 'TS-D-Q-1-10S_-300_car_person-bird-dog'"
         self.pipeline = ModelPipeline(target_fps=60, thresholds=self.thresholds, oi_label_list=self.oi_label_list)
 
     def tearDown(self):
@@ -84,11 +86,11 @@ class TestModelPipelineActualModels(TestCase):
         ret = self.pipeline.predict(img_bgr)
         self.assertTrue(ret)
 
-    def test_showimg_pipeline_with_real_image(self):
-        img_bgr = cv2.imread(os.path.join(EXAMPLE_IMAGES_PATH, 'dog_bike_car.jpg'))
-        import matplotlib
-        from matplotlib import pyplot as plt
-        plt.imshow(img_bgr)
-        plt.show()
-        import ipdb; ipdb.set_trace()
+    # def test_showimg_pipeline_with_real_image(self):
+    #     img_bgr = cv2.imread(os.path.join(EXAMPLE_IMAGES_PATH, 'dog_bike_car.jpg'))
+    #     import matplotlib
+    #     from matplotlib import pyplot as plt
+    #     plt.imshow(img_bgr)
+    #     plt.show()
+    #     import ipdb; ipdb.set_trace()
         pass
