@@ -2,3 +2,5 @@ dist/*
 *.egg-info/*
 .env
 Dockerfile
+yolov5n.pt
+data/*
