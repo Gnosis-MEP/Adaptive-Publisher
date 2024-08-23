@@ -1,15 +1,13 @@
+-f https://download.pytorch.org/whl/torch_stable.html
+pillow==9.5.0
+torch==2.0.1+cpu
+torchvision==0.15.2+cpu
+numpy==1.21.6
+opencv-python==4.8.1.78
+networkx==3.1
+ultralytics==8.0.138
 redis==4.6.0
 event-service-utils
 python-decouple==3.1
-numpy==1.21.6
-opencv-python-headless==4.5.5.64
 walrus==0.7.1
-pillow==9.5.0
-torch==1.13.1
-torchvision==0.14.1
-nvidia-cublas-cu11==11.10.3.66
-nvidia-cuda-nvrtc-cu11==11.7.99
-nvidia-cuda-runtime-cu11==11.7.99
-nvidia-cudnn-cu11==8.5.0.96
-ultralytics==8.0.138
 -e file:./#egg=adaptive_publisher
