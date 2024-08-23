@@ -15,7 +15,7 @@ else:
 from adaptive_publisher.models.pixel_diff import CVDiffModel
 from adaptive_publisher.models.oi_cls import OIClsModel
 from adaptive_publisher.models.oi_obj import OIObjModel
-from adaptive_publisher.models.base_pipeline import BaseModelPipeline
+from adaptive_publisher.models.base_pipeline import BaseModelPipeline, MockedPipeline
 
 
 
@@ -24,6 +24,8 @@ class ModelPipeline(BaseModelPipeline):
         self.cached_result_count = 0
         self.last_key_frame = None
         self.last_key_frame_prediction = None
+        # for event tracing and debugging
+        self.last_frame_step_exit = ''
 
         super().__init__(target_fps, thresholds, oi_label_list=oi_label_list)
         # self.thresholds = {
@@ -93,16 +95,20 @@ class ModelPipeline(BaseModelPipeline):
             origin = new_image_frame
             if self.last_key_frame is not None:
                 diff_perc = self.register_func_time('diff', self.pixel_diff.predict, origin, last_key_frame=self.last_key_frame)
+                self.last_frame_step_exit = 'diff'
+
             if diff_perc > self.thresholds['diff']:
                 new_image_frame = self.global_transform(new_image_frame)
                 oi_obj_img, oi_cls_img  = self.oi_transforms(new_image_frame)
                 oi_cls_conf = self.register_func_time('oi_cls', self.oi_cls.predict, oi_cls_img)
+                self.last_frame_step_exit = 'cls'
                 if oi_cls_conf < self.thresholds['oi_cls'][0]:
                     has_oi = False
                 elif oi_cls_conf > self.thresholds['oi_cls'][1]:
                     has_oi = True
                 else:
                     has_oi = self.register_func_time('oi_obj', self.oi_obj.predict, oi_obj_img, threshold=self.thresholds['oi_obj'])
+                    self.last_frame_step_exit = 'obj'
 
                 self.replace_key_frame(origin, has_oi)
             else:
@@ -112,6 +118,7 @@ class ModelPipeline(BaseModelPipeline):
     def run_pipeline_or_cached(self, new_image_frame):
         if self.cached_result_count > 0:
             self.cached_result_count -= 1
+            self.last_frame_step_exit = 'cached'
             return self.last_key_frame_prediction
 
         ret = self.register_func_time('pipeline', self.run_pipeline, new_image_frame)

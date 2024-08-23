@@ -61,6 +61,10 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         self.setup_event_generator()
 
     def _fake_query_setup(self):
+        # not connected yet with the rest of the system for this control
+        # so hardcoding here the query details
+        # in future should listen to query create in cmd thread and add
+        # the buffer stream for the query in here
         self.bufferstream_dict['bufferstream'] = {
             'bufferstream': self.stream_factory.create('1dcc691eca747c0654c42232f7abf12b', stype='streamOnly')
         }
@@ -79,9 +83,12 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
             self.early_filtering_rules['thresholds']
         )
         self.event_generator.setup()
+        # hardcoding specific query
+        # in future should add query from listed event
         self.event_generator.add_query_id('e4e4701af89d339d750bf3ef77ff6498')
 
     def experiment_temporary_exit_data_gathering(self):
+        "adding this method just to double check the results and have them saved for later"
         with open(TMP_EXP_EVAL_DATA_JSON_PATH, 'w') as f:
             json.dump(self.event_generator._get_experiment_eval_data(), f, indent=4)
 
@@ -115,6 +122,10 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
                             bufferstream_data = self.bufferstream_dict[buffer_stream_key]
                             bufferstream = bufferstream_data['bufferstream']
                             self.write_event_with_trace(event_data, bufferstream)
+                            self.logger.info(f'sending event_data "{event_data}", to buffer stream: "{bufferstream.key}"')
+                    else:
+                            self.logger.info(f'Event filtered')
+
         except KeyboardInterrupt as ke:
             self.event_generator.close()
             raise ke
@@ -128,6 +139,7 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
 
     def process_early_filtering_updated(self, event_data):
         # if is early filtering for this buffer streams, than do something, otherwise, ignore.
+        # but, not connected yet with the adaptation engine
         pass
 
     def process_event_type(self, event_type, event_data, json_msg):
@@ -150,6 +162,8 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         super(AdaptivePublisher, self).run()
         self.log_state()
         try:
+            # only have data thread for now
+            # the cmd shoul be add in future when receiving the adaptation results for the thresholds
             # self.cmd_thread = threading.Thread(target=self.run_forever, args=(self.process_cmd,))
             # self.cmd_thread = threading.Thread(target=self.run_forever, args=(self.log_state,))
             # self.data_thread = threading.Thread(target=self.run_forever, args=(self.process_data,))

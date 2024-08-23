@@ -22,10 +22,11 @@ class BaseModelPipeline():
         }
 
     def register_func_time(self, name, func, *args, **kwargs):
-        start_time = time.perf_counter()    # 1
+        "saves the function total proc time for double checking and evaluating the results"
+        start_time = time.perf_counter()
         value = func(*args, **kwargs)
-        end_time = time.perf_counter()      # 2
-        run_time = end_time - start_time    # 3
+        end_time = time.perf_counter()
+        run_time = end_time - start_time
         self.processing_times[name].append(run_time)
         return value
 

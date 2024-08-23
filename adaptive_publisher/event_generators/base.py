@@ -2,6 +2,7 @@ import datetime
 import os
 # from sys import getsizeof
 import statistics
+import time
 import uuid
 
 import numpy as np
@@ -12,7 +13,7 @@ from opentracing.propagation import Format
 from event_service_utils.services.tracer import EVENT_ID_TAG
 
 from adaptive_publisher.models.base_pipeline import MockedPipeline
-from adaptive_publisher.models.pipelines import BLSingleModelPipeline, ModelPipeline
+from adaptive_publisher.models.pipelines import BLSingleModelPipeline, ModelPipeline, MockedPipeline
 from adaptive_publisher.conf import DEFAULT_OI_LIST, EXAMPLE_IMAGES_PATH, REGISTER_EVAL_DATA, TMP_IGNORE_N_FRAMES
 
 
@@ -25,6 +26,7 @@ class OCVEventGenerator():
         self.publisher_id = publisher_id
         self.input_source = input_source
         self.fps = fps
+        self.frame_delay = 1 / fps
         self.width = width
         self.height = height
         self.query_ids = []
@@ -48,9 +50,12 @@ class OCVEventGenerator():
         if self.ef_pipeline_name == 'ModelPipeline':
             self.ef_pipeline =  ModelPipeline(
                 self.fps, self.thresholds, oi_label_list=DEFAULT_OI_LIST)
-        else:
+        elif self.ef_pipeline_name == 'SingleModelPipeline':
             self.ef_pipeline = BLSingleModelPipeline(
                 self.fps, self.thresholds, self.ef_pipeline_name, oi_label_list=DEFAULT_OI_LIST)
+        else:
+            self.ef_pipeline = MockedPipeline(
+                self.fps, self.thresholds, oi_label_list=DEFAULT_OI_LIST)
 
     def _clean_input_source(self):
         try:
@@ -65,6 +70,11 @@ class OCVEventGenerator():
 
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+
+        # for demo
+        # cv2.namedWindow("OriginalFrame", cv2.WINDOW_NORMAL)
+        # cv2.resizeWindow("OriginalFrame", 1280, 720)
+        # can_go = input('start?')
 
         if not self.cap.isOpened():
             raise Exception(f'Capture for input source {clean_source} is not oppening, wont be able to read data from source')
@@ -87,11 +97,15 @@ class OCVEventGenerator():
                 ret, frame = self.cap.read()
                 if ret:
                     self.current_frame_index += 1
+                    # cv2.imshow('OriginalFrame', frame)
+                    # if cv2.waitKey(1) & 0xFF == ord('q'): # wait for 1 millisecond
+                    #     pass
+
                     # print(f'read next frame: {self.current_frame_index}')
                     return frame
 
     def check_drop_frame(self, frame):
-        with self.service.tracer.start_active_span('check_drop_frame') as scope:
+        with self.service.tracer.start_active_span('early_filtering') as scope:
             if self.ef_pipeline is None:
                 # print(f'NO EF PIPELINE AVAILABLE!!!')
                 has_oi = True
@@ -99,6 +113,9 @@ class OCVEventGenerator():
                 has_oi = self.ef_pipeline.predict(frame)
                 # if not has_oi:
                 #     print('DROP!')
+
+            scope.span.set_tag('filter_exit_on', self.ef_pipeline.last_frame_step_exit)
+
             if REGISTER_EVAL_DATA:
                 self.exp_eval_data['results'][f'frame_{TMP_IGNORE_N_FRAMES + self.current_frame_index + 1}'] = has_oi
             return not has_oi
@@ -136,8 +153,15 @@ class OCVEventGenerator():
             return event_data
 
     def next_event(self):
+        start_time = time.time()
+
         next_frame = self.read_next_frame()
 
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        sleep_time = max(0, self.frame_delay - elapsed_time)
+        # ensure correct FPS (e.g., avoid reading frames too fast from disk)
+        time.sleep(sleep_time)
 
         if self.current_frame_index % 100 == 0:
             self.service.logger.info(f'Current Frame: {self.current_frame_index}')
@@ -145,7 +169,6 @@ class OCVEventGenerator():
             should_drop_frame = self.check_drop_frame(next_frame)
             if not should_drop_frame:
                 return self.generate_event_from_frame(next_frame)
-
 
     def close(self):
         if self.is_open():

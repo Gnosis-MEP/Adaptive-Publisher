@@ -21,6 +21,10 @@ class LocalOCVEventGenerator(OCVEventGenerator):
         self._is_open = True
 
     def setup(self):
+        # demo
+        # cv2.namedWindow("OriginalFrame", cv2.WINDOW_NORMAL)
+        # cv2.resizeWindow("OriginalFrame", 1280, 720)
+        # if reading frames from network, instead of local disk:
         if 'http' in self.input_source:
             ret = requests.get(self.input_source)
             rg = re.compile(r'href="(.*)"')
@@ -38,11 +42,16 @@ class LocalOCVEventGenerator(OCVEventGenerator):
                 next_frame_index = self.current_frame_index + 1
                 if next_frame_index < self.expected_total_frames:
                     image_path = self.images_paths[next_frame_index]
+                    # if reading frame from network, then dl frame as tmp image
                     if 'http' in image_path:
                         image_path = self.dl_temp_image(image_path)
                     frame = cv2.imread(image_path)
                     self.current_frame_index = next_frame_index
                     # print(f'read next frame: {self.current_frame_index}')
+                    # demo:
+                    # cv2.imshow('OriginalFrame', frame)
+                    # if cv2.waitKey(1) & 0xFF == ord('q'): # wait for 1 millisecond
+                    #     pass
                     return frame
                 else:
                     self._is_open = False
