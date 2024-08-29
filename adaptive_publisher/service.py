@@ -10,12 +10,14 @@ from event_service_utils.tracing.jaeger import init_tracer
 
 from adaptive_publisher.conf import (
     LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED,
+    LISTEN_EVENT_TYPE_QUERY_CREATED,
+    LISTEN_EVENT_TYPE_QUERY_REMOVED,
+    PUB_EVENT_TYPE_PUBLISHER_CREATED,
     TMP_EXP_EVAL_DATA_JSON_PATH,
     DEFAULT_THRESHOLDS,
     DEFAULT_TARGET_FPS,
 )
-from adaptive_publisher.event_generators import OCVEventGenerator, LocalOCVEventGenerator
-from adaptive_publisher.event_generators.base import MockedEventGenerator
+from adaptive_publisher.event_generators import OCVEventGenerator, LocalOCVEventGenerator, CloudSegOCVEventGenerator, MockedEventGenerator
 
 class AdaptivePublisher(BaseEventDrivenCMDService):
     def __init__(self,
@@ -45,6 +47,7 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         self.available_event_generators = {
             'MockedEventGenerator': MockedEventGenerator,
             'OCVEventGenerator': OCVEventGenerator,
+            'CloudSegOCVEventGenerator': CloudSegOCVEventGenerator,
             'LocalOCVEventGenerator': LocalOCVEventGenerator,
         }
         self.early_filtering_pipeline_name = early_filtering_pipeline_name
@@ -57,17 +60,17 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
             'target_fps': DEFAULT_TARGET_FPS,
         }
         self.publisher_configs = publisher_configs
-        self._fake_query_setup()
+        # self._fake_query_setup()
         self.setup_event_generator()
 
-    def _fake_query_setup(self):
-        # not connected yet with the rest of the system for this control
-        # so hardcoding here the query details
-        # in future should listen to query create in cmd thread and add
-        # the buffer stream for the query in here
-        self.bufferstream_dict['bufferstream'] = {
-            'bufferstream': self.stream_factory.create('1dcc691eca747c0654c42232f7abf12b', stype='streamOnly')
-        }
+    # def _fake_query_setup(self):
+    #     # not connected yet with the rest of the system for this control
+    #     # so hardcoding here the query details
+    #     # in future should listen to query create in cmd thread and add
+    #     # the buffer stream for the query in here
+    #     self.bufferstream_dict['bufferstream'] = {
+    #         'bufferstream': self.stream_factory.create('1dcc691eca747c0654c42232f7abf12b', stype='streamOnly')
+    #     }
 
 
     def setup_event_generator(self):
@@ -85,7 +88,6 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         self.event_generator.setup()
         # hardcoding specific query
         # in future should add query from listed event
-        self.event_generator.add_query_id('e4e4701af89d339d750bf3ef77ff6498')
 
     def experiment_temporary_exit_data_gathering(self):
         "adding this method just to double check the results and have them saved for later"
@@ -142,13 +144,38 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         # but, not connected yet with the adaptation engine
         pass
 
+    def process_query_created(self, event_data):
+        buffer_stream = event_data['buffer_stream']
+        publisher_id = buffer_stream['publisher_id']
+        buffer_stream_key = buffer_stream['buffer_stream_key']
+        query_id = event_data['query_id']
+        if self.publisher_configs['id'] == publisher_id:
+            self.event_generator.add_query_id(query_id)
+            self.bufferstream_dict[buffer_stream_key] = {
+                'bufferstream': self.stream_factory.create(buffer_stream_key, stype='streamOnly')
+            }
+
+    # def process_query_removed(self, event_data):
+    #     buffer_stream = event_data['buffer_stream']
+    #     publisher_id = buffer_stream['publisher_id']
+    #     buffer_stream_key = buffer_stream['buffer_stream_key']
+    #     query_id = event_data['query_id']
+
+    #     if self.publisher_configs['id'] == publisher_id:
+    #         self.event_generator.add_query_id(query_id)
+    #         self.bufferstream_dict[buffer_stream_key] = {
+    #             'bufferstream': self.stream_factory.create(buffer_stream_key, stype='streamOnly')
+    #         }
+
     def process_event_type(self, event_type, event_data, json_msg):
         if not super(AdaptivePublisher, self).process_event_type(event_type, event_data, json_msg):
             return False
         if event_type == LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED:
             self.process_early_filtering_updated(event_data=event_data)
-            # do some processing
-            pass
+        if event_type == LISTEN_EVENT_TYPE_QUERY_CREATED:
+            self.process_query_created(event_data=event_data)
+        # if event_type == LISTEN_EVENT_TYPE_QUERY_REMOVED:
+        #     self.process_query_removed(event_data=event_data)
 
     def log_state(self):
         super(AdaptivePublisher, self).log_state()
@@ -158,20 +185,29 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         self._log_dict('Early filtering rules:', self.early_filtering_rules)
         self._log_dict('Processing Times:', self.event_generator.get_stats_dict())
 
+
+    def publish_publisher_created(self):
+        new_event_data = {
+            'id': self.service_based_random_event_id(),
+        }
+        new_event_data.update(self.event_generator.publisher_details)
+        self.publish_event_type_to_stream(event_type=PUB_EVENT_TYPE_PUBLISHER_CREATED, new_event_data=new_event_data)
+
+
     def run(self):
         super(AdaptivePublisher, self).run()
         self.log_state()
+        self.publish_publisher_created()
         try:
             # only have data thread for now
             # the cmd shoul be add in future when receiving the adaptation results for the thresholds
-            # self.cmd_thread = threading.Thread(target=self.run_forever, args=(self.process_cmd,))
-            # self.cmd_thread = threading.Thread(target=self.run_forever, args=(self.log_state,))
-            # self.data_thread = threading.Thread(target=self.run_forever, args=(self.process_data,))
-            # self.cmd_thread.start()
-            # self.data_thread.start()
-            # self.cmd_thread.join()
-            # self.data_thread.join()
-            self.run_forever(self.process_data)
+            self.cmd_thread = threading.Thread(target=self.run_forever, args=(self.process_cmd,))
+            self.data_thread = threading.Thread(target=self.run_forever, args=(self.process_data,))
+            self.cmd_thread.start()
+            self.data_thread.start()
+            self.cmd_thread.join()
+            self.data_thread.join()
+            # self.run_forever(self.process_data)
         except:
             pass
         finally:

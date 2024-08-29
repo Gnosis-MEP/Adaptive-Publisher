@@ -32,10 +32,19 @@ class OCVEventGenerator():
         self.query_ids = []
         self.current_frame_index = -1
         self.color_channels = 'BGR'
-        self.source_uri = f'gnosis://{publisher_id}/{input_source}'
+        self.source_uri = f'gnosis://{publisher_id}/{input_source.split("/")[-1]}'
         self.cap = None
         self.ef_pipeline = None
         self.setup_ef_pipeline()
+        self.publisher_details = {
+            'publisher_id': self.publisher_id,
+            'source': self.source_uri,
+            'meta':{
+                'color': 'True',
+                'fps': str(self.fps),
+                'resolution': f'{width}x{height}'
+            }
+        }
         self.exp_eval_data = {
             'results': {},
             # 'storage': []
