@@ -7,7 +7,7 @@ from adaptive_publisher.conf import (
     REDIS_ADDRESS,
     REDIS_PORT,
     SERVICE_STREAM_KEY,
-    # LISTEN_EVENT_TYPE_SOME_EVENT_TYPE
+    LISTEN_EVENT_TYPE_QUERY_CREATED,
 )
 
 
@@ -21,22 +21,39 @@ def new_msg(event_data):
 
 
 
+
+
 def main():
     stream_factory = RedisStreamFactory(host=REDIS_ADDRESS, port=REDIS_PORT)
+#     LISTEN_EVENT_TYPE_QUERY_CREATED
+#    "QueryCreated" entity:
+
     # for checking published events output
-    # new_event_type_cmd = stream_factory.create(PUB_EVENT_TYPE_NEW_EVENT_TYPE, stype='streamOnly')
+    new_event_type_cmd = stream_factory.create(LISTEN_EVENT_TYPE_QUERY_CREATED, stype='streamOnly')
 
     # for testing sending msgs that the service listens to:
     # import ipdb; ipdb.set_trace()
     # some_event_type_cmd = stream_factory.create(LISTEN_EVENT_TYPE_SOME_EVENT_TYPE, stype='streamOnly')
-    # some_event_type_cmd.write_events(
-    #     new_msg(
-    #         {
-    #             'some': 'thing',
-    #             'other': 'thing',
-    #         }
-    #     )
-    # )
+    new_event_type_cmd.write_events(
+        new_msg(
+            {
+                {
+                    'subscriber_id': 'sub_id',
+                    'query_id': '1ca3c67d12721b8ea3bf234746348509',
+                    'parsed_query': 'doesntmatter',
+                    'query_received_event_id': 'doesntmatter',
+                    'buffer_stream': {
+                        'publisher_id': 'publisher1',
+                        'buffer_stream_key': '185e249ec4561fbc1931595c85e2db94',
+                        'source': 'gnosis://publisher1/TS-D-B-2.mp4',
+                        'resolution': '1920x1080',
+                        'fps': '5.0'
+                    },
+                    'service_chain': 'doesntmatter',
+                }
+            }
+        )
+    )
     # import ipdb; ipdb.set_trace()
 
     # read published events output
