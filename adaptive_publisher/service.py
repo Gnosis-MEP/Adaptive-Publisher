@@ -154,6 +154,7 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
             self.bufferstream_dict[buffer_stream_key] = {
                 'bufferstream': self.stream_factory.create(buffer_stream_key, stype='streamOnly')
             }
+            raise KeyboardInterrupt('Stoping this cmd thread')
 
     # def process_query_removed(self, event_data):
     #     buffer_stream = event_data['buffer_stream']
@@ -199,15 +200,12 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         self.log_state()
         self.publish_publisher_created()
         try:
-            # only have data thread for now
-            # the cmd shoul be add in future when receiving the adaptation results for the thresholds
-            self.cmd_thread = threading.Thread(target=self.run_forever, args=(self.process_cmd,))
-            self.data_thread = threading.Thread(target=self.run_forever, args=(self.process_data,))
-            self.cmd_thread.start()
-            self.data_thread.start()
-            self.cmd_thread.join()
-            self.data_thread.join()
-            # self.run_forever(self.process_data)
+            self.run_forever(self.process_cmd)
+        except KeyboardInterrupt:
+            pass
+
+        try:
+            self.run_forever(self.process_data)
         except:
             pass
         finally:
