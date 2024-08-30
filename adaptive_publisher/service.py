@@ -16,6 +16,7 @@ from adaptive_publisher.conf import (
     TMP_EXP_EVAL_DATA_JSON_PATH,
     DEFAULT_THRESHOLDS,
     DEFAULT_TARGET_FPS,
+    IGNORE_SEND_IMAGE,
 )
 from adaptive_publisher.event_generators import OCVEventGenerator, LocalOCVEventGenerator, CloudSegOCVEventGenerator, MockedEventGenerator
 
@@ -123,8 +124,9 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
                         for buffer_stream_key in buffer_stream_key_list:
                             bufferstream_data = self.bufferstream_dict[buffer_stream_key]
                             bufferstream = bufferstream_data['bufferstream']
-                            self.write_event_with_trace(event_data, bufferstream)
-                            self.logger.info(f'sending event_data "{event_data}", to buffer stream: "{bufferstream.key}"')
+                            if not IGNORE_SEND_IMAGE:
+                                self.write_event_with_trace(event_data, bufferstream)
+                                self.logger.info(f'sending event_data "{event_data}", to buffer stream: "{bufferstream.key}"')
                     else:
                             self.logger.info(f'Event filtered')
 
