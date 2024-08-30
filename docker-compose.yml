@@ -21,7 +21,7 @@ services:
     command: ./adaptive_publisher/run.py
     depends_on:
       - redis
-      - jaeger
+      # - jaeger
     build:
       context: '.'
       dockerfile: 'Dockerfile'
@@ -47,6 +47,10 @@ services:
       - PUBLISHER_FPS=${PUBLISHER_FPS}
       - PUBLISHER_RESOLUTION=${PUBLISHER_RESOLUTION}
       - LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED=${LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED}
+      - LISTEN_EVENT_TYPE_QUERY_CREATED=${LISTEN_EVENT_TYPE_QUERY_CREATED}
+      - LISTEN_EVENT_TYPE_QUERY_REMOVED=${LISTEN_EVENT_TYPE_QUERY_REMOVED}
+      - PUB_EVENT_TYPE_PUBLISHER_CREATED=${PUB_EVENT_TYPE_PUBLISHER_CREATED}
+      - PUB_EVENT_TYPE_PUBLISHER_REMOVED=${PUB_EVENT_TYPE_PUBLISHER_REMOVED}
       - LOGGING_LEVEL=${LOGGING_LEVEL}
     volumes:
       - ./data:/service/data

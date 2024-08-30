@@ -1,4 +1,4 @@
-FROM python:3.8
+FROM python:3.9.2
 
 RUN apt-get update \
     && apt-get install -y \
@@ -15,7 +15,7 @@ RUN git clone --depth 1 https://github.com/ultralytics/yolov5.git /torchhome/hub
     rm -r /torchhome/hub/ultralytics_yolov5_master/.git
 
 
-ADD ./requirements.txt /service/requirements.txt
+ADD ./requirements-rpi.txt /service/requirements.txt
 ADD ./setup.py /service/setup.py
 RUN mkdir -p /service/adaptive_publisher/ && \
     touch /service/adaptive_publisher/__init__.py

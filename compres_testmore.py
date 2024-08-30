@@ -25,10 +25,10 @@ def measure_compression_time(image_path, method,compression_level, iterations=10
     for _ in range(iterations):
         # Load the image from file
         image = Image.open(image_path)
-        img_numpy_array = np.array(image)
-
+        img_numpy_array = np.array(image, dtype=np.uint8)
         # Convert numpy array to bytes
         nd_array_bytes = img_numpy_array.tobytes(order='C')
+        mv = memoryview(nd_array_bytes)
 
         # Measure compression time
         start_time = time.perf_counter()
@@ -39,12 +39,12 @@ def measure_compression_time(image_path, method,compression_level, iterations=10
         compression_time = end_time - start_time
         times.append(compression_time)
 
+        print(f'{_}: {len(compressed_data)}')
         # Delete the image variable to free memory
         del image
         del img_numpy_array
         del nd_array_bytes
         del compressed_data
-        print('_')
 
     # Calculate average time
     average_time = sum(times) / len(times)
@@ -56,12 +56,12 @@ image_path = 'frame_1.png'  # Replace with the actual path to your image
 # Compression level (1 for fast, 9 for maximum compression)
 compression_level = 1  # You can change this to any level from 1 to 9
 
-# Measure average compression time
-average_compression_time = measure_compression_time(image_path, compress_zlib, compression_level)
-print(f'(ZLIB) Average compression time over 100 iterations: {average_compression_time:.6f} seconds')
+# # Measure average compression time
+# average_compression_time = measure_compression_time(image_path, compress_zlib, compression_level)
+# print(f'(ZLIB) Average compression time over 100 iterations: {average_compression_time:.6f} seconds')
 
-average_compression_time = measure_compression_time(image_path, compress_lz4, compression_level)
-print(f'(LZ4) Average compression time over 100 iterations: {average_compression_time:.6f} seconds')
+# average_compression_time = measure_compression_time(image_path, compress_lz4, compression_level)
+# print(f'(LZ4) Average compression time over 100 iterations: {average_compression_time:.6f} seconds')
 
 average_compression_time = measure_compression_time(image_path, compress_snappy, compression_level)
 print(f'(SNAPPY) Average compression time over 100 iterations: {average_compression_time:.6f} seconds')
