@@ -14,7 +14,7 @@ from event_service_utils.services.tracer import EVENT_ID_TAG
 
 from adaptive_publisher.models.base_pipeline import MockedPipeline
 from adaptive_publisher.models.pipelines import BLSingleModelPipeline, ModelPipeline, MockedPipeline
-from adaptive_publisher.conf import DEFAULT_OI_LIST, EXAMPLE_IMAGES_PATH, REGISTER_EVAL_DATA, TMP_IGNORE_N_FRAMES
+from adaptive_publisher.conf import DEFAULT_OI_LIST, EXAMPLE_IMAGES_PATH, REGISTER_EVAL_DATA, TMP_IGNORE_N_FRAMES, IGNORE_SEND_IMAGE
 
 
 class OCVEventGenerator():
@@ -136,7 +136,9 @@ class OCVEventGenerator():
 
             event_id = f'{self.publisher_id}-{str(uuid.uuid4())}'
 
-            img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
+            img_uri = ''
+            if not IGNORE_SEND_IMAGE:
+                img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
 
 
             # store_size = getsizeof(frame.tobytes(order='C'))
