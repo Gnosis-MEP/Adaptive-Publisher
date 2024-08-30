@@ -8,6 +8,7 @@ from adaptive_publisher.conf import (
     REDIS_PORT,
     SERVICE_STREAM_KEY,
     LISTEN_EVENT_TYPE_QUERY_CREATED,
+    PUBLISHER_ID,
 )
 
 
@@ -43,11 +44,11 @@ def main():
                     'parsed_query': 'doesntmatter',
                     'query_received_event_id': 'doesntmatter',
                     'buffer_stream': {
-                        'publisher_id': 'publisher1',
-                        'buffer_stream_key': '185e249ec4561fbc1931595c85e2db94',
-                        'source': 'gnosis://publisher1/TS-D-B-2.mp4',
-                        'resolution': '1920x1080',
-                        'fps': '5.0'
+                        'publisher_id': PUBLISHER_ID,
+                        'buffer_stream_key': 'somebufferstreamkey',
+                        'source': 'doesntmatter',
+                        'resolution': 'doesntmatter',
+                        'fps': 'doesntmatter'
                     },
                     'service_chain': 'doesntmatter',
                 }
