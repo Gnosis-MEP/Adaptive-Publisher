@@ -2,6 +2,7 @@
 from event_service_utils.streams.redis import RedisStreamFactory
 from event_service_utils.img_serialization.redis import RedisImageCache
 
+from adaptive_publisher.file_cli import CompressKeyRedisImageCache
 from adaptive_publisher.service import AdaptivePublisher
 
 from adaptive_publisher.conf import (
@@ -37,7 +38,7 @@ def run_service():
         'db': 0,
     }
 
-    file_storage_cli = RedisImageCache()
+    file_storage_cli = CompressKeyRedisImageCache()
     file_storage_cli.file_storage_cli_config = redis_fs_cli_config
     file_storage_cli.expiration_time = REDIS_EXPIRATION_TIME
     file_storage_cli.initialize_file_storage_client()
