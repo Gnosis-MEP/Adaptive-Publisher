@@ -55,3 +55,4 @@ services:
       - LOGGING_LEVEL=${LOGGING_LEVEL}
     volumes:
       - ./data:/service/data
+      # - /etc/localtime:/etc/localtime:ro

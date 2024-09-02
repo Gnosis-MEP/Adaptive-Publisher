@@ -165,12 +165,6 @@ class OCVEventGenerator():
             return event_data
 
     def next_event(self):
-        current_time = time.perf_counter()
-        elapsed_time = current_time - self.last_event_time
-        sleep_time = max(0, self.frame_delay - elapsed_time)
-        # ensure correct FPS (e.g., avoid reading frames too fast from disk)
-        time.sleep(sleep_time)
-
         next_frame = self.read_next_frame()
 
         if self.current_frame_index % 100 == 0:
@@ -181,6 +175,12 @@ class OCVEventGenerator():
             should_drop_frame = self.check_drop_frame(next_frame)
             if not should_drop_frame:
                 event_data = self.generate_event_from_frame(next_frame)
+
+        current_time = time.perf_counter()
+        elapsed_time = current_time - self.last_event_time
+        sleep_time = max(0, self.frame_delay - elapsed_time)
+        # ensure correct FPS (e.g., avoid reading frames too fast from disk)
+        time.sleep(sleep_time)
         self.last_event_time = time.perf_counter()
         return event_data
 
