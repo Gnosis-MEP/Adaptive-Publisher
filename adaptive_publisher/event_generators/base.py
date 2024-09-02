@@ -49,6 +49,7 @@ class OCVEventGenerator():
             'results': {},
             # 'storage': []
         }
+        self.last_event_time = time.perf_counter()
 
 
     def _get_experiment_eval_data(self):
@@ -164,22 +165,24 @@ class OCVEventGenerator():
             return event_data
 
     def next_event(self):
-        start_time = time.time()
-
-        next_frame = self.read_next_frame()
-
-        end_time = time.time()
-        elapsed_time = end_time - start_time
+        current_time = time.perf_counter()
+        elapsed_time = current_time - self.last_event_time
         sleep_time = max(0, self.frame_delay - elapsed_time)
         # ensure correct FPS (e.g., avoid reading frames too fast from disk)
         time.sleep(sleep_time)
 
+        next_frame = self.read_next_frame()
+
         if self.current_frame_index % 100 == 0:
             self.service.logger.info(f'Current Frame: {self.current_frame_index}')
+
+        event_data = None
         if next_frame is not None:
             should_drop_frame = self.check_drop_frame(next_frame)
             if not should_drop_frame:
-                return self.generate_event_from_frame(next_frame)
+                event_data = self.generate_event_from_frame(next_frame)
+        self.last_event_time = time.perf_counter()
+        return event_data
 
     def close(self):
         if self.is_open():
