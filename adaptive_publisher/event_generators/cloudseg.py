@@ -3,12 +3,16 @@ import uuid
 
 import cv2
 
+from adaptive_publisher.models.base_pipeline import MockedPipeline
 from adaptive_publisher.event_generators.base import OCVEventGenerator
-from adaptive_publisher.conf import CLOUDSEG_SCALE
+from adaptive_publisher.conf import CLOUDSEG_SCALE, DEFAULT_OI_LIST
 
 
 class CloudSegOCVEventGenerator(OCVEventGenerator):
 
+    def setup_ef_pipeline(self):
+        self.ef_pipeline = MockedPipeline(
+            self.fps, self.thresholds, oi_label_list=DEFAULT_OI_LIST)
 
     def generate_event_from_frame(self, frame):
         with self.service.tracer.start_active_span('generate_event_from_frame') as scope:
