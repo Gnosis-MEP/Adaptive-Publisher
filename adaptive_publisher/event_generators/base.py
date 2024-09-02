@@ -113,6 +113,9 @@ class OCVEventGenerator():
 
                     # print(f'read next frame: {self.current_frame_index}')
                     return frame
+                else:
+                    self.close()
+
 
     def check_drop_frame(self, frame):
         with self.service.tracer.start_active_span('early_filtering') as scope:
