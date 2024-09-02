@@ -19,12 +19,13 @@ services:
   service:
     image: arruda/adaptive-publisher:master
     command: ./adaptive_publisher/run.py
-    depends_on:
-      - redis
+    # depends_on:
+    #   - redis
       # - jaeger
     build:
       context: '.'
       dockerfile: 'Dockerfile'
+    network_mode: "host"
     environment:
       - PYTHONUNBUFFERED=0
       - REDIS_ADDRESS=${REDIS_ADDRESS}
