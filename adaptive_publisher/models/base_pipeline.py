@@ -20,6 +20,8 @@ class BaseModelPipeline():
         self.processing_times = {
             'predict': [],
         }
+        # for event tracing and debugging
+        self.last_frame_step_exit = ''
 
     def register_func_time(self, name, func, *args, **kwargs):
         "saves the function total proc time for double checking and evaluating the results"

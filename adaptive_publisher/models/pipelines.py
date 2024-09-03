@@ -24,8 +24,6 @@ class ModelPipeline(BaseModelPipeline):
         self.cached_result_count = 0
         self.last_key_frame = None
         self.last_key_frame_prediction = None
-        # for event tracing and debugging
-        self.last_frame_step_exit = ''
 
         super().__init__(target_fps, thresholds, oi_label_list=oi_label_list)
         # self.thresholds = {
