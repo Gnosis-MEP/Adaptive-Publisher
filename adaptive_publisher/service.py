@@ -19,16 +19,16 @@ from adaptive_publisher.conf import (
     TMP_EXP_EVAL_DATA_JSON_PATH,
     DEFAULT_THRESHOLDS,
     DEFAULT_TARGET_FPS,
-    PUB_QUEUE_MAX_SIZE,
     IGNORE_SEND_IMAGE,
 )
-from adaptive_publisher.event_generators import OCVEventGenerator, LocalOCVEventGenerator, CloudSegOCVEventGenerator, MockedEventGenerator
+from adaptive_publisher.event_generators import OCVEventGenerator, LocalOCVEventGenerator, MockedEventGenerator
 
 class AdaptivePublisher(BaseEventDrivenCMDService):
     def __init__(self,
                  service_stream_key, service_cmd_key_list,
                  pub_event_list, service_details,
                  stream_factory,
+                 file_storage_cli,
                  publisher_configs,
                  event_generator_type,
                  early_filtering_pipeline_name,
@@ -51,7 +51,6 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         self.available_event_generators = {
             'MockedEventGenerator': MockedEventGenerator,
             'OCVEventGenerator': OCVEventGenerator,
-            'CloudSegOCVEventGenerator': CloudSegOCVEventGenerator,
             'LocalOCVEventGenerator': LocalOCVEventGenerator,
         }
         self.early_filtering_pipeline_name = early_filtering_pipeline_name
@@ -62,21 +61,12 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
             'thresholds': DEFAULT_THRESHOLDS,
             'target_fps': DEFAULT_TARGET_FPS,
         }
+        self.file_storage_cli = file_storage_cli
         self.publisher_configs = publisher_configs
-        # self._fake_query_setup()
         self.setup_event_generator()
         self.publisher_parent_conn = None
         self.publisher_child_conn = None
         self.publisher = None
-
-    # def _fake_query_setup(self):
-    #     # not connected yet with the rest of the system for this control
-    #     # so hardcoding here the query details
-    #     # in future should listen to query create in cmd thread and add
-    #     # the buffer stream for the query in here
-    #     self.bufferstream_dict['bufferstream'] = {
-    #         'bufferstream': self.stream_factory.create('1dcc691eca747c0654c42232f7abf12b', stype='streamOnly')
-    #     }
 
 
     def setup_event_generator(self):
@@ -91,8 +81,6 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
             self.early_filtering_rules['thresholds']
         )
         self.event_generator.setup()
-        # hardcoding specific query
-        # in future should add query from listed event
 
     def experiment_temporary_exit_data_gathering(self):
         "adding this method just to double check the results and have them saved for later"
@@ -126,23 +114,16 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
                     if frame is not None:
                         if not IGNORE_SEND_IMAGE:
                             tracer_headers = {}
-                            self.logger.info('will send data do proc>')
                             self.tracer.inject(scope.span, Format.HTTP_HEADERS, tracer_headers)
+                            trace_id = tracer_headers['uber-trace-id']
                             with self.publisher.condition:
-                                self.logger.info('Wait for frame sent...')
                                 while not self.publisher.frame_sent:
                                     self.publisher.condition.wait()
-                                    
-                                self.publisher.frame_data = (frame, self.event_generator.current_frame_index, tracer_headers['uber-trace-id'])
+
+                                self.publisher.frame_data = (frame, self.event_generator.current_frame_index, trace_id)
                                 self.publisher.frame_ready = True
                                 self.publisher.frame_sent = False
                                 self.publisher.condition.notify()
-                            #self.publisher_parent_conn.send((
-                            #self.pub_queue.put((
-                            #    frame.tobytes(order='C'),
-                            #    self.event_generator.current_frame_index,
-                            #    tracer_headers['uber-trace-id']
-                            #))
                     else:
                         self.logger.info(f'Event filtered')
 
@@ -179,6 +160,15 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
                 'bufferstream': buffer_stream_key,
                 'query_ids': [query_id]
             }
+            # only one query for now
+            # in the future we should change to run the cmd in parallel and add more query_ids to a bufferstream
+            # and add more bufferstreams for different queries on this publisher.
+            self.publisher = EventPublisher(
+                parent_service=self,
+                publisher_details=self.event_generator.publisher_details,
+                query_ids=[query_id],
+                buffer_stream_key=buffer_stream_key
+            )
 
     def process_event_type(self, event_type, event_data, json_msg):
         if not super(AdaptivePublisher, self).process_event_type(event_type, event_data, json_msg):
@@ -205,27 +195,6 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         new_event_data.update(self.event_generator.publisher_details)
         self.publish_event_type_to_stream(event_type=PUB_EVENT_TYPE_PUBLISHER_CREATED, new_event_data=new_event_data)
 
-
-    def setup_publisher_process(self):
-        #self.publisher_parent_conn, self.publisher_child_conn = multiprocessing.Pipe()
-
-        #self.pub_queue = multiprocessing.Queue(maxsize=PUB_QUEUE_MAX_SIZE)
-        
-        bufferstream_key, first_bufferstream_data = list(self.bufferstream_dict.items())[0]
-        self.publisher = EventPublisher(
-            #self.pub_queue,
-            #self.publisher_child_conn,
-            self,
-            self.tracer,
-            self.event_generator.publisher_details,
-            first_bufferstream_data['query_ids'],
-            bufferstream_key,
-            self.logging_level
-        )
-        #publisher_process = multiprocessing.Process(target=self.publisher.run_forever)
-        publisher_process = None
-        return publisher_process
-
     def run(self):
         super(AdaptivePublisher, self).run()
         self.log_state()
@@ -240,28 +209,16 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
             self.logger.debug('No query to publish data to, will exit')
             return
 
-        self.logger.debug('Will setup publisher')
-        publisher_process = self.setup_publisher_process()
-        self.logger.debug('setup publisher done')
-        # Start the publishing subprocess
-        #publisher_process.start()
-        time.sleep(5)
-        self.logger.debug('publisher_process.start() done')
         try:
-            self.logger.debug('will self.run_forever(self.process_data)')
-            rt = threading.Thread(target=self.run_forever, args=(self.process_data,))
-            pt = threading.Thread(target=self.publisher.run_forever_thread, args=())
-            rt.start()
-            pt.start()
+            self.data_thread = threading.Thread(target=self.run_forever, args=(self.process_data,))
+            self.pub_thread = threading.Thread(target=self.run_forever, args=(self.publisher.run,))
+            self.data_thread.start()
+            self.pub_thread.start()
         except Exception as e:
             self.logger.exception(e)
         finally:
-            rt.join()
-            pt.join()
+            self.data_thread.join()
+            self.pub_thread.join()
             self.log_state()
             self.experiment_temporary_exit_data_gathering()
-            self.logger.debug('will finish publisher process')
-            #publisher_process.terminate()
-            #publisher_process.join()
-            self.logger.debug('finished publisher process')
 

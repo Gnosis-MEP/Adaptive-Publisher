@@ -39,12 +39,12 @@ def main():
         new_msg(
             {
                 'subscriber_id': 'sub_id',
-                'query_id': '1ca3c67d12721b8ea3bf234746348509',
+                'query_id': '50809f300b8e646a3e7735569a0da37f',
                 'parsed_query': 'doesntmatter',
                 'query_received_event_id': 'doesntmatter',
                 'buffer_stream': {
                     'publisher_id': PUBLISHER_ID,
-                    'buffer_stream_key': 'somebufferstreamkey',
+                    'buffer_stream_key': '5547a5a4bbf71facde9441b2b368e755',
                     'source': 'doesntmatter',
                     'resolution': 'doesntmatter',
                     'fps': 'doesntmatter'
