@@ -127,7 +127,9 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
                             tracer_headers = {}
                             self.logger.info('will send data do proc>')
                             self.tracer.inject(scope.span, Format.HTTP_HEADERS, tracer_headers)
-                            self.publisher_parent_conn.send((
+
+                            # self.publisher_parent_conn.send((
+                            self.pub_queue.put((
                                 frame.tobytes(order='C'),
                                 self.event_generator.current_frame_index,
                                 tracer_headers['uber-trace-id']
@@ -196,11 +198,12 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
 
 
     def setup_publisher_process(self):
-        self.publisher_parent_conn, self.publisher_child_conn = multiprocessing.Pipe()
+        # self.publisher_parent_conn, self.publisher_child_conn = multiprocessing.Pipe()
 
+        self.pub_queue = multiprocessing.Queue(maxsize=10)
         bufferstream_key, first_bufferstream_data = list(self.bufferstream_dict.items())[0]
         self.publisher = EventPublisher(
-            self.publisher_child_conn,
+            self.pub_queue,
             self.tracer,
             self.event_generator.publisher_details,
             first_bufferstream_data['query_ids'],

@@ -44,8 +44,8 @@ from adaptive_publisher.conf import (
 
 
 class EventPublisher():
-    def __init__(self, service_child_conn, tracer, publisher_details, query_ids, buffer_stream_key, logging_level):
-        self.service_child_conn = service_child_conn
+    def __init__(self, pub_queue, tracer, publisher_details, query_ids, buffer_stream_key, logging_level):
+        self.pub_queue = pub_queue
         self.tracer = tracer
         self.logging_level = logging_level
         self.publisher_details = publisher_details
@@ -98,7 +98,8 @@ class EventPublisher():
     def run_forever(self):
         self.setup_connections()
         while True:
-            frame_bytes, frame_index, trace_id = self.service_child_conn.recv()
+            # frame_bytes, frame_index, trace_id = self.service_child_conn.recv()
+            frame_bytes, frame_index, trace_id = self.pub_queue.get()
             self.logger.error(f'Received frame: {frame_index}')
             n_channels = 3
             shape = (self.height, self.width, n_channels)
