@@ -1,5 +1,6 @@
 import json
 import time
+import multiprocessing
 import threading
 
 from opentracing.ext import tags
@@ -7,6 +8,8 @@ from opentracing.propagation import Format
 from event_service_utils.logging.decorators import timer_logger
 from event_service_utils.services.event_driven import BaseEventDrivenCMDService
 from event_service_utils.tracing.jaeger import init_tracer
+
+from adaptive_publisher.event_publishers.publisher import EventPublisher
 
 from adaptive_publisher.conf import (
     LISTEN_EVENT_TYPE_EARLY_FILTERING_UPDATED,
@@ -25,7 +28,6 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
                  service_stream_key, service_cmd_key_list,
                  pub_event_list, service_details,
                  stream_factory,
-                 file_storage_cli,
                  publisher_configs,
                  event_generator_type,
                  early_filtering_pipeline_name,
@@ -52,7 +54,6 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
             'LocalOCVEventGenerator': LocalOCVEventGenerator,
         }
         self.early_filtering_pipeline_name = early_filtering_pipeline_name
-        self.file_storage_cli = file_storage_cli
         self.event_generator = None
         self.bufferstream_dict = {}
         self.early_filtering_rules = {
@@ -63,6 +64,9 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         self.publisher_configs = publisher_configs
         # self._fake_query_setup()
         self.setup_event_generator()
+        self.publisher_parent_conn = None
+        self.publisher_child_conn = None
+        self.publisher = None
 
     # def _fake_query_setup(self):
     #     # not connected yet with the rest of the system for this control
@@ -78,7 +82,6 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         self.event_generator = self.available_event_generators[self.event_generator_type](
             self,
             self.early_filtering_pipeline_name,
-            self.file_storage_cli,
             self.publisher_configs['id'],
             self.publisher_configs['input_source'],
             self.early_filtering_rules['target_fps'],
@@ -108,7 +111,6 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         event_data = None
         buffer_stream_key_list = None
 
-
         try:
             buffer_stream_key_list = self.bufferstream_dict.keys()
             if len(buffer_stream_key_list) > 0:
@@ -119,16 +121,26 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
                     for tag, value in tracer_tags.items():
                         scope.span.set_tag(tag, value)
 
-                    event_data = self.event_generator.next_event()
-                    if event_data is not None:
-                        for buffer_stream_key in buffer_stream_key_list:
-                            bufferstream_data = self.bufferstream_dict[buffer_stream_key]
-                            bufferstream = bufferstream_data['bufferstream']
-                            if not IGNORE_SEND_IMAGE:
-                                self.write_event_with_trace(event_data, bufferstream)
-                                self.logger.info(f'sending event_data "{event_data}", to buffer stream: "{bufferstream.key}"')
+                    frame = self.event_generator.read_next_frame_or_drop()
+                    if frame is not None:
+                        if not IGNORE_SEND_IMAGE:
+                            tracer_headers = {}
+                            self.logger.info('will send data do proc>')
+                            self.tracer.inject(scope.span, Format.HTTP_HEADERS, tracer_headers)
+                            self.publisher_parent_conn.send((
+                                frame.tobytes(order='C'),
+                                self.event_generator.current_frame_index,
+                                tracer_headers['uber-trace-id']
+                            ))
                     else:
-                            self.logger.info(f'Event filtered')
+                        self.logger.info(f'Event filtered')
+
+                    current_time = time.perf_counter()
+                    elapsed_time = current_time - self.event_generator.last_event_time
+                    sleep_time = max(0, self.event_generator.frame_delay - elapsed_time)
+                    # ensure correct FPS (e.g., avoid reading frames too fast from disk)
+                    time.sleep(sleep_time)
+                    self.event_generator.last_event_time = time.perf_counter()
 
         except KeyboardInterrupt as ke:
             self.event_generator.close()
@@ -154,21 +166,9 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         if self.publisher_configs['id'] == publisher_id:
             self.event_generator.add_query_id(query_id)
             self.bufferstream_dict[buffer_stream_key] = {
-                'bufferstream': self.stream_factory.create(buffer_stream_key, stype='streamOnly')
+                'bufferstream': buffer_stream_key,
+                'query_ids': [query_id]
             }
-            raise KeyboardInterrupt('Stoping this cmd thread')
-
-    # def process_query_removed(self, event_data):
-    #     buffer_stream = event_data['buffer_stream']
-    #     publisher_id = buffer_stream['publisher_id']
-    #     buffer_stream_key = buffer_stream['buffer_stream_key']
-    #     query_id = event_data['query_id']
-
-    #     if self.publisher_configs['id'] == publisher_id:
-    #         self.event_generator.add_query_id(query_id)
-    #         self.bufferstream_dict[buffer_stream_key] = {
-    #             'bufferstream': self.stream_factory.create(buffer_stream_key, stype='streamOnly')
-    #         }
 
     def process_event_type(self, event_type, event_data, json_msg):
         if not super(AdaptivePublisher, self).process_event_type(event_type, event_data, json_msg):
@@ -188,7 +188,6 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         self._log_dict('Early filtering rules:', self.early_filtering_rules)
         self._log_dict('Processing Times:', self.event_generator.get_stats_dict())
 
-
     def publish_publisher_created(self):
         new_event_data = {
             'id': self.service_based_random_event_id(),
@@ -197,19 +196,52 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         self.publish_event_type_to_stream(event_type=PUB_EVENT_TYPE_PUBLISHER_CREATED, new_event_data=new_event_data)
 
 
+    def setup_publisher_process(self):
+        self.publisher_parent_conn, self.publisher_child_conn = multiprocessing.Pipe()
+
+        bufferstream_key, first_bufferstream_data = list(self.bufferstream_dict.items())[0]
+        self.publisher = EventPublisher(
+            self.publisher_child_conn,
+            self.tracer,
+            self.event_generator.publisher_details,
+            first_bufferstream_data['query_ids'],
+            bufferstream_key,
+            self.logging_level
+        )
+        publisher_process = multiprocessing.Process(target=self.publisher.run_forever)
+        return publisher_process
+
     def run(self):
         super(AdaptivePublisher, self).run()
         self.log_state()
         self.publish_publisher_created()
-        try:
-            self.run_forever(self.process_cmd)
-        except KeyboardInterrupt:
-            pass
 
         try:
+            while True:
+                self.process_cmd()
+                if len(self.bufferstream_dict) != 0:
+                    break
+        except KeyboardInterrupt:
+            self.logger.debug('No query to publish data to, will exit')
+            return
+
+        self.logger.debug('Will setup publisher')
+        publisher_process = self.setup_publisher_process()
+        self.logger.debug('setup publisher done')
+        # Start the publishing subprocess
+        publisher_process.start()
+        time.sleep(5)
+        self.logger.debug('publisher_process.start() done')
+        try:
+            self.logger.debug('will self.run_forever(self.process_data)')
             self.run_forever(self.process_data)
-        except:
-            pass
+        except Exception as e:
+            self.logger.exception(e)
         finally:
             self.log_state()
             self.experiment_temporary_exit_data_gathering()
+            self.logger.debug('will finish publisher process')
+            publisher_process.terminate()
+            publisher_process.join()
+            self.logger.debug('finished publisher process')
+

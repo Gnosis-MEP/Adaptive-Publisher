@@ -1,6 +1,8 @@
 import datetime
 import os
 # from sys import getsizeof
+import multiprocessing
+import threading
 import statistics
 import time
 import uuid
@@ -18,11 +20,10 @@ from adaptive_publisher.conf import DEFAULT_OI_LIST, EXAMPLE_IMAGES_PATH, REGIST
 
 
 class OCVEventGenerator():
-    def __init__(self, service, ef_pipeline_name, file_storage_cli, publisher_id, input_source, fps, width, height, thresholds):
+    def __init__(self, service, ef_pipeline_name, publisher_id, input_source, fps, width, height, thresholds):
         self.service = service
         self.thresholds = thresholds
         self.ef_pipeline_name = ef_pipeline_name
-        self.file_storage_cli = file_storage_cli
         self.publisher_id = publisher_id
         self.input_source = input_source
         self.fps = fps
@@ -50,6 +51,7 @@ class OCVEventGenerator():
             # 'storage': []
         }
         self.last_event_time = time.perf_counter()
+
 
 
     def _get_experiment_eval_data(self):
@@ -98,10 +100,6 @@ class OCVEventGenerator():
         self.query_ids = list(query_set)
 
     def read_next_frame(self):
-        # print('reading next frame')
-        # raise NotImplementedError()
-        # ovc read stuff
-
         with self.service.tracer.start_active_span('read_next_frame') as scope:
             if self.cap.isOpened():
                 ret, frame = self.cap.read()
@@ -115,7 +113,6 @@ class OCVEventGenerator():
                     return frame
                 else:
                     self.close()
-
 
     def check_drop_frame(self, frame):
         with self.service.tracer.start_active_span('early_filtering') as scope:
@@ -133,59 +130,88 @@ class OCVEventGenerator():
                 self.exp_eval_data['results'][f'frame_{TMP_IGNORE_N_FRAMES + self.current_frame_index + 1}'] = has_oi
             return not has_oi
 
-    def generate_event_from_frame(self, frame):
-        with self.service.tracer.start_active_span('generate_event_from_frame') as scope:
-            # Get current UTC timestamp
-            timestamp = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')
+    # def generate_event_sub_process(self):
+    #     # 'tracer': {'headers': {'uber-trace-id': '2396802ed011eff:448583fac0a5068:19a35a86988a232b:1'}}
 
-            event_id = f'{self.publisher_id}-{str(uuid.uuid4())}'
+    #     while True:
+    #         frame, trace_id = self.child_conn.recv()
 
-            img_uri = ''
-            if not IGNORE_SEND_IMAGE:
-                img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
+    #         thread = threading.Thread(target=self.generate_and_send_event, args=(frame, trace_id))
+    #         thread.start()
+
+    # def generate_and_send_event(self, frame, trace_id):
+    #     span_ctx = self.service.tracer.extract(Format.HTTP_HEADERS, {'uber-trace-id': trace_id})
+    #     with self.tracer.start_active_span('generate_and_send_event', child_of=span_ctx) as scope:
+    #         event_data = self.generate_event_from_frame(frame)
+
+    #         bufferstream = self.service.bufferstream_dict[self.buffer_stream_key]['bufferstream']
+    #         self.write_event_with_trace(event_data, bufferstream)
+    #         self.logger.info(f'sending event_data "{event_data}", to buffer stream: "{bufferstream.key}"')
+
+    # def generate_event_from_frame(self, frame):
+    #     with self.service.tracer.start_active_span('generate_event_from_frame') as scope:
+    #         # Get current UTC timestamp
+    #         timestamp = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')
+
+    #         event_id = f'{self.publisher_id}-{str(uuid.uuid4())}'
+
+    #         img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
 
 
-            # store_size = getsizeof(frame.tobytes(order='C'))
+    #         # store_size = getsizeof(frame.tobytes(order='C'))
 
-            # store_size = self.file_storage_cli.client.execute_command(f'MEMORY USAGE {img_uri}')
-            # self.exp_eval_data['storage'].append(store_size)
-            # self.service.logger.info('>>> store size: ' + str(store_size) + ' <> ' + str(frame.nbytes))
-            # img_uri = 'mocked_img_uri'
+    #         # store_size = self.file_storage_cli.client.execute_command(f'MEMORY USAGE {img_uri}')
+    #         # self.exp_eval_data['storage'].append(store_size)
+    #         # self.service.logger.info('>>> store size: ' + str(store_size) + ' <> ' + str(frame.nbytes))
+    #         # img_uri = 'mocked_img_uri'
 
-            event_data = {
-                'id': event_id,
-                'publisher_id': self.publisher_id,
-                'source': self.source_uri,
-                'image_url': img_uri,
-                'vekg': {},
-                'query_ids': self.query_ids,
-                'width': self.width,
-                'height': self.height,
-                'color_channels': self.color_channels,
-                'frame_index': self.current_frame_index,
-                'timestamp': timestamp,
-            }
-            return event_data
+    #         event_data = {
+    #             'id': event_id,
+    #             'publisher_id': self.publisher_id,
+    #             'source': self.source_uri,
+    #             'image_url': img_uri,
+    #             'vekg': {},
+    #             'query_ids': self.query_ids,
+    #             'width': self.width,
+    #             'height': self.height,
+    #             'color_channels': self.color_channels,
+    #             'frame_index': self.current_frame_index,
+    #             'timestamp': timestamp,
+    #         }
+    #         return event_data
 
-    def next_event(self):
+
+    def read_next_frame_or_drop(self):
         next_frame = self.read_next_frame()
 
         if self.current_frame_index % 100 == 0:
             self.service.logger.info(f'Current Frame: {self.current_frame_index}')
 
-        event_data = None
         if next_frame is not None:
             should_drop_frame = self.check_drop_frame(next_frame)
-            if not should_drop_frame:
-                event_data = self.generate_event_from_frame(next_frame)
+            if should_drop_frame:
+                next_frame = None
+        return next_frame
 
-        current_time = time.perf_counter()
-        elapsed_time = current_time - self.last_event_time
-        sleep_time = max(0, self.frame_delay - elapsed_time)
-        # ensure correct FPS (e.g., avoid reading frames too fast from disk)
-        time.sleep(sleep_time)
-        self.last_event_time = time.perf_counter()
-        return event_data
+    # def next_event(self):
+    #     next_frame = self.read_next_frame()
+
+    #     if self.current_frame_index % 100 == 0:
+    #         self.service.logger.info(f'Current Frame: {self.current_frame_index}')
+
+    #     event_data = None
+    #     if next_frame is not None:
+    #         should_drop_frame = self.check_drop_frame(next_frame)
+    #         if not should_drop_frame:
+    #             event_data = self.generate_event_from_frame(next_frame)
+
+    #     current_time = time.perf_counter()
+    #     elapsed_time = current_time - self.last_event_time
+    #     sleep_time = max(0, self.frame_delay - elapsed_time)
+    #     # ensure correct FPS (e.g., avoid reading frames too fast from disk)
+    #     time.sleep(sleep_time)
+    #     self.last_event_time = time.perf_counter()
+    #     return event_data
 
     def close(self):
         if self.is_open():

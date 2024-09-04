@@ -37,10 +37,10 @@ def run_service():
         'db': 0,
     }
 
-    file_storage_cli = RedisImageCache()
-    file_storage_cli.file_storage_cli_config = redis_fs_cli_config
-    file_storage_cli.expiration_time = REDIS_EXPIRATION_TIME
-    file_storage_cli.initialize_file_storage_client()
+    # file_storage_cli = RedisImageCache()
+    # file_storage_cli.file_storage_cli_config = redis_fs_cli_config
+    # file_storage_cli.expiration_time = REDIS_EXPIRATION_TIME
+    # file_storage_cli.initialize_file_storage_client()
 
     publisher_configs = {
         'id': PUBLISHER_ID,
@@ -56,7 +56,7 @@ def run_service():
         pub_event_list=PUB_EVENT_LIST,
         service_details=SERVICE_DETAILS,
         stream_factory=stream_factory,
-        file_storage_cli=file_storage_cli,
+        # file_storage_cli=file_storage_cli,
         publisher_configs=publisher_configs,
         event_generator_type=EVENT_GENERATOR_TYPE,
         early_filtering_pipeline_name=EARLY_FILTERING_PIPELINE_NAME,
