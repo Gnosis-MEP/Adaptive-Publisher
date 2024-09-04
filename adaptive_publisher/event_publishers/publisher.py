@@ -17,6 +17,7 @@ from event_service_utils.streams.redis import RedisStreamFactory
 from event_service_utils.img_serialization.redis import RedisImageCache
 from event_service_utils.tracing.jaeger import init_tracer
 
+#from adaptive_publisher.file_cli import CompressKeyRedisImageCache as RedisImageCache
 from adaptive_publisher.conf import (
     PUBLISHER_FPS,
     PUBLISHER_HEIGHT,
@@ -44,13 +45,20 @@ from adaptive_publisher.conf import (
 
 
 class EventPublisher():
-    def __init__(self, pub_queue, tracer, publisher_details, query_ids, buffer_stream_key, logging_level):
-        self.pub_queue = pub_queue
+    def __init__(self, 
+        service_child_conn, 
+        #pub_queue, 
+        tracer, publisher_details, query_ids, buffer_stream_key, logging_level):
+        
+        self.service_child_conn = service_child_conn
+        self.tracer = service_child_conn.tracer
+        self.logger = self.service_child_conn.logger
+        #self.pub_queue = pub_queue
         self.tracer = tracer
         self.logging_level = logging_level
         self.publisher_details = publisher_details
         self.name = self.publisher_details['publisher_id']
-        self.logger = self._setup_logging()
+        #self.logger = self._setup_logging()
 
         self.width, self.height = self.publisher_details['meta']['resolution'].split('x')
         self.width = int(self.width)
@@ -84,29 +92,54 @@ class EventPublisher():
         self.file_storage_cli.file_storage_cli_config = self.redis_fs_cli_config
         self.file_storage_cli.expiration_time = REDIS_EXPIRATION_TIME
         self.file_storage_cli.initialize_file_storage_client()
-        self.stream_factory = RedisStreamFactory(host=REDIS_ADDRESS, port=REDIS_PORT)
+        #self.stream_factory = RedisStreamFactory(host=REDIS_ADDRESS, port=REDIS_PORT)
+        self.stream_factory = self.service_child_conn.stream_factory
 
-        opentracing._reset_global_tracer()
-        Config._initialized_lock = threading.Lock()
-        Config._initialized = False
+        #opentracing._reset_global_tracer()
+        #Config._initialized_lock = threading.Lock()
+        #Config._initialized = False
 
-        self.tracer = init_tracer('AdaptivePublisherPublisher', **self.tracer_configs)
+        #self.tracer = init_tracer('AdaptivePublisherPublisher', **self.tracer_configs)
 
         self.logger.error(f"tracer is this: {self.tracer}")
         self.bufferstream = self.stream_factory.create(self.buffer_stream_key, stype='streamOnly')
+        self.lock = threading.Lock()
+        self.condition = threading.Condition(self.lock)
+        self.frame_ready = False
+        self.frame_sent = True
 
     def run_forever(self):
         self.setup_connections()
         while True:
-            # frame_bytes, frame_index, trace_id = self.service_child_conn.recv()
-            frame_bytes, frame_index, trace_id = self.pub_queue.get()
+            frame_bytes, frame_index, trace_id = self.service_child_conn.recv()
+            #frame_bytes, frame_index, trace_id = self.pub_queue.get()
             self.logger.error(f'Received frame: {frame_index}')
             n_channels = 3
             shape = (self.height, self.width, n_channels)
             frame = nd_array_from_ndarray_bytes(frame_bytes, shape, dtype=DEFAULT_DTYPE)
-            thread = threading.Thread(target=self.generate_and_send_event, args=(frame, frame_index, trace_id))
-            thread.start()
+            self.generate_and_send_event(frame, frame_index, trace_id)
+            #thread = threading.Thread(target=self.generate_and_send_event, args=(frame, frame_index, trace_id))
+            #thread.start()
 
+    def run_forever_thread(self):
+        self.setup_connections()
+        while True:
+            with self.condition:
+                self.logger.info('waiting for frame to be ready')
+                while not self.frame_ready:
+                    self.condition.wait()
+                
+                frame, frame_index, trace_id = self.frame_data
+                self.frame_ready = False
+                
+            self.logger.info('generate_and_send_event_same_trace')
+            self.generate_and_send_event(frame, frame_index, trace_id)
+            
+            with self.condition:
+                self.frame_sent = True
+                self.logger.info('frame was sent!')
+                self.condition.notify()
+            
     def default_event_serializer(self, event_data):
         event_msg = {'event': json.dumps(event_data)}
         return event_msg
@@ -161,6 +194,13 @@ class EventPublisher():
     def generate_and_send_event(self, frame, frame_index, trace_id):
         span_ctx = self.tracer.extract(Format.HTTP_HEADERS, {'uber-trace-id': trace_id})
         with self.tracer.start_active_span('generate_and_send_event', child_of=span_ctx) as scope:
+            event_data = self.generate_event_from_frame(frame, frame_index)
+
+            self.write_event_with_trace(event_data, self.bufferstream)
+            self.logger.error(f'sending event_data "{event_data}", to buffer stream: "{self.buffer_stream_key}"')
+            
+    def generate_and_send_event_same_trace(self, frame, frame_index):
+        with self.tracer.start_active_span('generate_and_send_event') as scope:
             event_data = self.generate_event_from_frame(frame, frame_index)
 
             self.write_event_with_trace(event_data, self.bufferstream)

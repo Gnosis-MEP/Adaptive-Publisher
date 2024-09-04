@@ -24,6 +24,8 @@ PUBLISHER_WIDTH, PUBLISHER_HEIGHT = [int(v) for v in PUBLISHER_RESOLUTION.split(
 EVENT_GENERATOR_TYPE = config('EVENT_GENERATOR_TYPE', default='LocalOCVEventGenerator')
 EARLY_FILTERING_PIPELINE_NAME =  config('EARLY_FILTERING_PIPELINE_NAME', default='ModelPipeline')
 
+PUB_QUEUE_MAX_SIZE = config('PUB_QUEUE_MAX_SIZE', default=100, cast=int)
+
 USE_OCV_TRANSFORMS = config('USE_OCV_TRANSFORMS', default=True, cast=bool)
 
 DEFAULT_TARGET_FPS = config('DEFAULT_TARGET_FPS', default=PUBLISHER_FPS, cast=float)

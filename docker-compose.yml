@@ -24,12 +24,13 @@ services:
     #   - jaeger
     build:
       context: '.'
-      dockerfile: 'Dockerfile'
+      dockerfile: 'Dockerfile-rpi'
     network_mode: "host"
     environment:
       - PYTHONUNBUFFERED=0
       - REDIS_ADDRESS=${REDIS_ADDRESS}
       - REDIS_PORT=${REDIS_PORT}
+      - REDIS_EXPIRATION_TIME=${REDIS_EXPIRATION_TIME}
       - TRACER_REPORTING_HOST=${TRACER_REPORTING_HOST}
       - TRACER_REPORTING_PORT=${TRACER_REPORTING_PORT}
       - SERVICE_STREAM_KEY=${SERVICE_STREAM_KEY}
@@ -53,7 +54,11 @@ services:
       - PUB_EVENT_TYPE_PUBLISHER_CREATED=${PUB_EVENT_TYPE_PUBLISHER_CREATED}
       - PUB_EVENT_TYPE_PUBLISHER_REMOVED=${PUB_EVENT_TYPE_PUBLISHER_REMOVED}
       - IGNORE_SEND_IMAGE=${IGNORE_SEND_IMAGE}
+      - PUB_QUEUE_MAX_SIZE=${PUB_QUEUE_MAX_SIZE}
       - LOGGING_LEVEL=${LOGGING_LEVEL}
     volumes:
       - ./data:/service/data
-      # - /etc/localtime:/etc/localtime:ro
+      - ./adaptive_publisher:/service/adaptive_publisher
+#      - /etc/localtime:/etc/localtime:ro
+#      - /media/arruda/Elements1/Datasets/Cut/TS-D-Q-1.mp4:/data/TS-D-Q-1.mp4
+      - /media/arruda/Elements1/Datasets/Cut/TS-D-B-2.mp4:/data/TS-D-B-2.mp4

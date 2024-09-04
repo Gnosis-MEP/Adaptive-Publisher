@@ -19,6 +19,7 @@ from adaptive_publisher.conf import (
     TMP_EXP_EVAL_DATA_JSON_PATH,
     DEFAULT_THRESHOLDS,
     DEFAULT_TARGET_FPS,
+    PUB_QUEUE_MAX_SIZE,
     IGNORE_SEND_IMAGE,
 )
 from adaptive_publisher.event_generators import OCVEventGenerator, LocalOCVEventGenerator, CloudSegOCVEventGenerator, MockedEventGenerator
@@ -127,13 +128,21 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
                             tracer_headers = {}
                             self.logger.info('will send data do proc>')
                             self.tracer.inject(scope.span, Format.HTTP_HEADERS, tracer_headers)
-
-                            # self.publisher_parent_conn.send((
-                            self.pub_queue.put((
-                                frame.tobytes(order='C'),
-                                self.event_generator.current_frame_index,
-                                tracer_headers['uber-trace-id']
-                            ))
+                            with self.publisher.condition:
+                                self.logger.info('Wait for frame sent...')
+                                while not self.publisher.frame_sent:
+                                    self.publisher.condition.wait()
+                                    
+                                self.publisher.frame_data = (frame, self.event_generator.current_frame_index, tracer_headers['uber-trace-id'])
+                                self.publisher.frame_ready = True
+                                self.publisher.frame_sent = False
+                                self.publisher.condition.notify()
+                            #self.publisher_parent_conn.send((
+                            #self.pub_queue.put((
+                            #    frame.tobytes(order='C'),
+                            #    self.event_generator.current_frame_index,
+                            #    tracer_headers['uber-trace-id']
+                            #))
                     else:
                         self.logger.info(f'Event filtered')
 
@@ -198,19 +207,23 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
 
 
     def setup_publisher_process(self):
-        # self.publisher_parent_conn, self.publisher_child_conn = multiprocessing.Pipe()
+        #self.publisher_parent_conn, self.publisher_child_conn = multiprocessing.Pipe()
 
-        self.pub_queue = multiprocessing.Queue(maxsize=10)
+        #self.pub_queue = multiprocessing.Queue(maxsize=PUB_QUEUE_MAX_SIZE)
+        
         bufferstream_key, first_bufferstream_data = list(self.bufferstream_dict.items())[0]
         self.publisher = EventPublisher(
-            self.pub_queue,
+            #self.pub_queue,
+            #self.publisher_child_conn,
+            self,
             self.tracer,
             self.event_generator.publisher_details,
             first_bufferstream_data['query_ids'],
             bufferstream_key,
             self.logging_level
         )
-        publisher_process = multiprocessing.Process(target=self.publisher.run_forever)
+        #publisher_process = multiprocessing.Process(target=self.publisher.run_forever)
+        publisher_process = None
         return publisher_process
 
     def run(self):
@@ -231,19 +244,24 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
         publisher_process = self.setup_publisher_process()
         self.logger.debug('setup publisher done')
         # Start the publishing subprocess
-        publisher_process.start()
+        #publisher_process.start()
         time.sleep(5)
         self.logger.debug('publisher_process.start() done')
         try:
             self.logger.debug('will self.run_forever(self.process_data)')
-            self.run_forever(self.process_data)
+            rt = threading.Thread(target=self.run_forever, args=(self.process_data,))
+            pt = threading.Thread(target=self.publisher.run_forever_thread, args=())
+            rt.start()
+            pt.start()
         except Exception as e:
             self.logger.exception(e)
         finally:
+            rt.join()
+            pt.join()
             self.log_state()
             self.experiment_temporary_exit_data_gathering()
             self.logger.debug('will finish publisher process')
-            publisher_process.terminate()
-            publisher_process.join()
+            #publisher_process.terminate()
+            #publisher_process.join()
             self.logger.debug('finished publisher process')
 
