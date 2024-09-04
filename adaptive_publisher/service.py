@@ -120,7 +120,7 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
                     }
                     for tag, value in tracer_tags.items():
                         scope.span.set_tag(tag, value)
-
+                    init_time = time.perf_counter()
                     frame = self.event_generator.read_next_frame_or_drop()
                     if frame is not None:
                         if not IGNORE_SEND_IMAGE:
@@ -136,11 +136,10 @@ class AdaptivePublisher(BaseEventDrivenCMDService):
                         self.logger.info(f'Event filtered')
 
                     current_time = time.perf_counter()
-                    elapsed_time = current_time - self.event_generator.last_event_time
+                    elapsed_time = current_time - init_time
                     sleep_time = max(0, self.event_generator.frame_delay - elapsed_time)
                     # ensure correct FPS (e.g., avoid reading frames too fast from disk)
                     time.sleep(sleep_time)
-                    self.event_generator.last_event_time = time.perf_counter()
 
         except KeyboardInterrupt as ke:
             self.event_generator.close()
