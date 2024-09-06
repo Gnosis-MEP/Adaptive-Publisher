@@ -1,5 +1,6 @@
 import threading
 import datetime
+import statistics
 
 import cv2
 from opentracing.propagation import Format
@@ -53,6 +54,7 @@ class EventPublisher():
 
         self.buffer_stream_key = buffer_stream_key
         self.bufferstream = self.parent_service.stream_factory.create(self.buffer_stream_key, stype='streamOnly')
+        self.store_sizes = []
 
     # def run_forever(self):
     #     while True:
@@ -102,9 +104,12 @@ class EventPublisher():
 
 
         # store_size = getsizeof(frame.tobytes(order='C'))
-
         # store_size = self.file_storage_cli.client.execute_command(f'MEMORY USAGE {img_uri}')
-        # self.parent_service.logger.info('>>> store size: ' + str(store_size) + ' <> ' + str(frame.nbytes))
+        # self.store_sizes.append(int(store_size))
+        # std = 0
+        # if len(self.store_sizes) > 1:
+        #     std = statistics.stdev(self.store_sizes)
+        # self.parent_service.logger.error(f'>>> total ({len(self.store_sizes)}) last_size: {store_size} >> avg sizes: {sum(self.store_sizes) / len(self.store_sizes)} | std: {std}')
         event_data = {
             'id': event_id,
             'publisher_id': self.publisher_details['publisher_id'],
