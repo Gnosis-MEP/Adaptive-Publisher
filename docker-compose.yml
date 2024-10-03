@@ -61,4 +61,4 @@ services:
       - ./adaptive_publisher:/service/adaptive_publisher
 #      - /etc/localtime:/etc/localtime:ro
 #      - /media/arruda/Elements1/Datasets/Cut/TS-D-Q-1.mp4:/data/TS-D-Q-1.mp4
-      - /media/arruda/Elements1/Datasets/Cut/TS-D-B-2.mp4:/data/TS-D-B-2.mp4
+#      - /media/arruda/Elements1/Datasets/Cut/TS-D-B-2.mp4:/data/TS-D-B-2.mp4
