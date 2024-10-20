@@ -99,6 +99,13 @@ class EventPublisher():
 
         if REDUCE_SCALE > 1:
             frame = cv2.resize(frame, (self.width // REDUCE_SCALE, self.height // REDUCE_SCALE), interpolation=cv2.INTER_LINEAR)
+            # workaround to the absurd ammount of mem usage in the server
+            # by the cloudseg method, so try to make some space available as soon as
+            # it can be made
+            if frame_index < 1600:
+                self.file_storage_cli.expiration_time = 240
+            if frame_index < 328:
+                self.file_storage_cli.expiration_time = 60
 
         img_uri = self.file_storage_cli.upload_inmemory_to_storage(frame)
 
